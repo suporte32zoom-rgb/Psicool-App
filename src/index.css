@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-clinic-bg: #0b0616;
+    --color-clinic-card: #120b24;
+    --color-neon-purple: #bf5af2;
+    --color-magenta-hot: #ff007f;
+  }
+
+  body {
+    background-color: #0b0616;
+    color: #f1f5f9;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* Custom scrollbar for clinical dashboards */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0616;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a1b4e;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #bf5af2;
+  }
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(191, 90, 242, 0.25);
+}
+
+.glow-magenta {
+  box-shadow: 0 0 25px rgba(255, 0, 127, 0.35);
+}
+
+.glow-subtle {
+  box-shadow: 0 4px 20px rgba(11, 6, 22, 0.6);
+}
+
+.glass-panel {
+  background: rgba(18, 11, 36, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Official Brazilian Medical & Psychological Document Print Styles */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  header, 
+  footer, 
+  nav, 
+  .no-print,
+  button, 
+  #psicool-mega-menu,
+  #psicool-quick-bar {
+    display: none !important;
+  }
+
+  .printable-document {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 1.5cm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .printable-document * {
+    color: #000000 !important;
+    background: transparent !important;
+    border-color: #000000 !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 1cm;
+  }
+}
