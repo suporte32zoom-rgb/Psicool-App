@@ -142,6 +142,12 @@ export default function App() {
     );
   };
 
+  const handleUpdateAppointment = (updatedApt: Appointment) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === updatedApt.id ? updatedApt : apt))
+    );
+  };
+
   const handleAddFinancialRecord = (newRecord: FinancialRecord) => {
     setFinancialRecords((prev) => [newRecord, ...prev]);
   };
@@ -212,6 +218,7 @@ export default function App() {
             onStartTelemedicine={handleStartTelemedicine}
             onAddAppointment={handleAddAppointment}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+            onUpdateAppointment={handleUpdateAppointment}
           />
         )}
 

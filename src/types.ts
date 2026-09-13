@@ -132,6 +132,8 @@ export interface Appointment {
   locationName?: string; // ex: "Consultório Bela Vista - Sala 4" ou "Telemedicina HD E2EE"
   status: 'confirmado' | 'pendente' | 'em_andamento' | 'concluido' | 'cancelado';
   value: number;
+  googleEventId?: string;
+  syncedToGoogleCalendar?: boolean;
 }
 
 export interface FinancialRecord {
