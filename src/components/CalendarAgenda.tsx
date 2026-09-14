@@ -27,7 +27,9 @@ import {
   Trash2,
   Sparkles,
   Link2,
-  Globe
+  Globe,
+  Copy,
+  ShieldAlert
 } from 'lucide-react';
 import { Appointment, Patient } from '../types';
 import { 
@@ -75,6 +77,8 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
   // Destructive Action Confirmation Modal for Workspace API
   const [eventToDelete, setEventToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [showDomainHelpModal, setShowDomainHelpModal] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   // New appointment form state
   const [patientId, setPatientId] = useState(patients[0]?.id || '');
@@ -146,7 +150,14 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      alert(`Falha na autenticação com o Google: ${err.message || 'Tente novamente.'}`);
+      if (
+        err?.code === 'auth/unauthorized-domain' ||
+        err?.message?.includes('unauthorized-domain')
+      ) {
+        setShowDomainHelpModal(true);
+      } else {
+        alert(`Falha na autenticação com o Google: ${err.message || 'Tente novamente.'}`);
+      }
     } finally {
       setIsAuthenticating(false);
     }
@@ -990,6 +1001,74 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Unauthorized Domain Error Guidance Modal */}
+      {showDomainHelpModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-[#120b24] border border-amber-500/80 p-6 shadow-2xl relative space-y-4">
+            <div className="flex items-center gap-3 text-amber-400">
+              <div className="p-3 rounded-2xl bg-amber-950/80 border border-amber-800">
+                <ShieldAlert className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Autorização de Domínio no Firebase</h3>
+                <p className="text-xs text-amber-300/80">Código de erro: auth/unauthorized-domain</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-purple-200/90 leading-relaxed">
+              O Firebase Authentication bloqueia acessos de domínios que ainda não foram cadastrados na lista de domínios autorizados do seu projeto.
+            </p>
+
+            <div className="bg-[#0b0616] p-4 rounded-xl border border-[#2a1b4e] space-y-3">
+              <div>
+                <span className="text-[11px] font-semibold text-purple-400 uppercase tracking-wider block mb-1">
+                  Domínio Atual para Autorizar:
+                </span>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-[#1a0f35] px-3 py-2 rounded-lg text-xs font-mono text-white border border-[#3b2370] overflow-x-auto">
+                    {typeof window !== 'undefined' ? window.location.hostname : 'dodgerblue-alpaca-665329.hostingersite.com'}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        navigator.clipboard.writeText(window.location.hostname);
+                        setCopiedDomain(true);
+                        setTimeout(() => setCopiedDomain(false), 3000);
+                      }
+                    }}
+                    className="p-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-all flex items-center gap-1 text-xs font-semibold"
+                    title="Copiar domínio"
+                  >
+                    {copiedDomain ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedDomain ? 'Copiado!' : 'Copiar'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-purple-300/80 space-y-1.5 pt-1 border-t border-[#2a1b4e]">
+                <p className="font-semibold text-white">Como autorizar em 3 passos:</p>
+                <ol className="list-decimal list-inside space-y-1 text-purple-200/70">
+                  <li>Acesse o <a href="https://console.firebase.google.com/project/gen-lang-client-0972969900/authentication/settings" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline font-semibold">Console do Firebase (Configurações de Autenticação)</a></li>
+                  <li>Vá na aba <strong>Domínios Autorizados (Authorized Domains)</strong></li>
+                  <li>Clique em <strong>Adicionar domínio</strong>, cole o domínio acima e salve.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDomainHelpModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-all shadow-lg"
+              >
+                Entendi, já adicionei
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
