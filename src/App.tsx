@@ -33,7 +33,10 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavigationTab>('consultorio');
-  const [profile, setProfile] = useState<ProfessionalProfile>('psicologo');
+  const [profile, setProfile] = useState<ProfessionalProfile>(() => {
+    const saved = localStorage.getItem('psicool_profile_type');
+    return (saved as ProfessionalProfile) || 'psicologo';
+  });
 
   // Commercial Free Usage Lock State (0 / 30 mensagens)
   const MAX_FREE_MESSAGES = 30;
@@ -42,14 +45,78 @@ export default function App() {
     return saved ? parseInt(saved, 10) : 0;
   });
 
-  // Clinical Workspace Entities
-  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(INITIAL_FINANCIAL);
-  const [documents, setDocuments] = useState<ClinicalDocument[]>(INITIAL_DOCUMENTS);
-  const [scaleAssessments, setScaleAssessments] = useState<ScaleAssessment[]>(INITIAL_SCALE_ASSESSMENTS);
-  const [offices, setOffices] = useState<OfficeSpace[]>(INITIAL_OFFICES);
-  const [professionalData, setProfessionalData] = useState<ProfessionalData>(INITIAL_PROFESSIONAL);
+  // Clinical Workspace Entities with Real LocalStorage Persistence
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    const saved = localStorage.getItem('psicool_patients');
+    return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
+  });
+
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    const saved = localStorage.getItem('psicool_appointments');
+    return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+  });
+
+  const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>(() => {
+    const saved = localStorage.getItem('psicool_financial');
+    return saved ? JSON.parse(saved) : INITIAL_FINANCIAL;
+  });
+
+  const [documents, setDocuments] = useState<ClinicalDocument[]>(() => {
+    const saved = localStorage.getItem('psicool_documents');
+    return saved ? JSON.parse(saved) : INITIAL_DOCUMENTS;
+  });
+
+  const [scaleAssessments, setScaleAssessments] = useState<ScaleAssessment[]>(() => {
+    const saved = localStorage.getItem('psicool_scale_assessments');
+    return saved ? JSON.parse(saved) : INITIAL_SCALE_ASSESSMENTS;
+  });
+
+  const [offices, setOffices] = useState<OfficeSpace[]>(() => {
+    const saved = localStorage.getItem('psicool_offices');
+    return saved ? JSON.parse(saved) : INITIAL_OFFICES;
+  });
+
+  const [professionalData, setProfessionalData] = useState<ProfessionalData>(() => {
+    const saved = localStorage.getItem('psicool_professional_data');
+    return saved ? JSON.parse(saved) : INITIAL_PROFESSIONAL;
+  });
+
+  // Persist all real user changes to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('psicool_profile_type', profile);
+  }, [profile]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_message_count', messageCount.toString());
+  }, [messageCount]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_patients', JSON.stringify(patients));
+  }, [patients]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_appointments', JSON.stringify(appointments));
+  }, [appointments]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_financial', JSON.stringify(financialRecords));
+  }, [financialRecords]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_documents', JSON.stringify(documents));
+  }, [documents]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_scale_assessments', JSON.stringify(scaleAssessments));
+  }, [scaleAssessments]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_offices', JSON.stringify(offices));
+  }, [offices]);
+
+  useEffect(() => {
+    localStorage.setItem('psicool_professional_data', JSON.stringify(professionalData));
+  }, [professionalData]);
 
   // Cross-component prompt bridge
   const [bridgedPrompt, setBridgedPrompt] = useState<string>('');
@@ -63,11 +130,6 @@ export default function App() {
 
   const [targetOfficeTab, setTargetOfficeTab] = useState<'locais' | 'tcle_contratos' | 'dados_profissional' | null>(null);
   const [triggerNewFinancialRecord, setTriggerNewFinancialRecord] = useState(false);
-
-  // Persist message quota
-  useEffect(() => {
-    localStorage.setItem('psicool_message_count', messageCount.toString());
-  }, [messageCount]);
 
   const incrementMessageCount = () => {
     setMessageCount((prev) => Math.min(MAX_FREE_MESSAGES, prev + 1));
@@ -164,6 +226,10 @@ export default function App() {
     setOffices((prev) => [newOffice, ...prev]);
   };
 
+  const handleUpdateProfessional = (data: ProfessionalData) => {
+    setProfessionalData(data);
+  };
+
   const handlePlanSelected = (plan: 'mensal' | 'anual') => {
     setMessageCount(0);
   };
@@ -253,6 +319,7 @@ export default function App() {
             assessments={scaleAssessments}
             patients={patients}
             profile={profile}
+            professional={professionalData}
             onSaveAssessment={handleSaveScaleAssessment}
             initialScaleType={targetScaleType}
             triggerOpenScale={triggerNewScale}
@@ -269,7 +336,7 @@ export default function App() {
             professional={professionalData}
             profile={profile}
             patients={patients}
-            onUpdateProfessional={setProfessionalData}
+            onUpdateProfessional={handleUpdateProfessional}
             onAddOffice={handleAddOffice}
             initialSubTab={targetOfficeTab}
             onClearTrigger={() => setTargetOfficeTab(null)}
@@ -281,6 +348,7 @@ export default function App() {
             records={financialRecords}
             patients={patients}
             profile={profile}
+            professional={professionalData}
             onAddRecord={handleAddFinancialRecord}
             initialOpenNew={triggerNewFinancialRecord}
             onClearTrigger={() => setTriggerNewFinancialRecord(false)}
@@ -293,25 +361,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Subtle Clinical Footer */}
-      <footer className="w-full border-t border-[#2a1b4e]/60 bg-[#0b0616] py-3 px-4 text-center text-xs text-purple-400/50 flex flex-wrap items-center justify-between gap-2 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>PSICOOL (psicool.com.br) • Consultório Virtual & Físico Inteligente (CFP / CFM)</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span>Telemedicina Criptografada E2EE</span>
-          <span>Alegra AI (Gemini 3.8 Flash)</span>
-          <button 
-            onClick={() => setMessageCount(0)} 
-            className="text-[10px] text-purple-400 hover:text-white underline cursor-pointer"
-            title="Resetar contador de mensagens para testes de demonstração"
-          >
-            Resetar Quota Demo
-          </button>
-        </div>
-      </footer>
 
     </div>
   );

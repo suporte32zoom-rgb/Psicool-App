@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Plus, 
@@ -7,18 +7,12 @@ import {
   Check, 
   Sparkles, 
   ShieldCheck, 
-  AlertTriangle, 
   Search, 
-  Download, 
-  User, 
-  Calendar, 
-  Pill, 
   Clock, 
-  Stethoscope, 
-  BrainCircuit,
   FileCheck,
-  Eye,
-  X
+  Building2,
+  Lock,
+  UserCheck
 } from 'lucide-react';
 import { ClinicalDocument, DocumentType, Patient, ProfessionalProfile, ProfessionalData } from '../types';
 
@@ -45,7 +39,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<'todos' | 'receitas' | 'atestados' | 'laudos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState<ClinicalDocument | null>(documents[0] || null);
+  const [selectedDocId, setSelectedDocId] = useState<string>(documents[0]?.id || '');
   const [showNewModal, setShowNewModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -53,9 +47,26 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
   const [docType, setDocType] = useState<DocumentType>(
     profile === 'psiquiatra' ? 'receita_controle_especial' : 'atestado_psicologico'
   );
+  const [patientId, setPatientId] = useState(patients[0]?.id || '');
+  const [manualPatientName, setManualPatientName] = useState('');
+  const [manualPatientCpf, setManualPatientCpf] = useState('');
+  const [docTitle, setDocTitle] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
+  const [docContent, setDocContent] = useState('');
+  const [daysOfRest, setDaysOfRest] = useState<number>(3);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  // Keep selected document in sync
+  useEffect(() => {
+    if (documents.length > 0 && !documents.some((d) => d.id === selectedDocId)) {
+      setSelectedDocId(documents[0].id);
+    }
+  }, [documents, selectedDocId]);
+
+  const selectedDoc = documents.find((d) => d.id === selectedDocId) || null;
 
   // Deep Navigation Trigger Listener
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialDocType) {
       setDocType(initialDocType);
     }
@@ -64,12 +75,6 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
       if (onClearTrigger) onClearTrigger();
     }
   }, [initialDocType, triggerOpenNew, onClearTrigger]);
-  const [patientId, setPatientId] = useState(patients[0]?.id || '');
-  const [docTitle, setDocTitle] = useState('');
-  const [diagnosis, setDiagnosis] = useState('');
-  const [docContent, setDocContent] = useState('');
-  const [daysOfRest, setDaysOfRest] = useState<number>(3);
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Filtered Documents
   const filteredDocs = documents.filter((doc) => {
@@ -104,7 +109,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
 
   const handleGenerateWithAI = async () => {
     const currentPatient = patients.find((p) => p.id === patientId);
-    if (!currentPatient) return;
+    const patName = currentPatient ? currentPatient.name : manualPatientName || 'Paciente';
 
     setIsGeneratingAI(true);
     try {
@@ -113,13 +118,13 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           docType,
-          patientName: currentPatient.name,
-          patientCpf: currentPatient.cpf,
-          diagnosis: diagnosis || currentPatient.diagnosisHypothesis,
-          context: `Paciente com queixas clínicas ativas. Perfil: ${profile}.`,
+          patientName: patName,
+          patientCpf: currentPatient?.cpf || manualPatientCpf,
+          diagnosis: diagnosis || currentPatient?.diagnosisHypothesis || 'Avaliação clínica especializada',
+          context: `Atendimento clínico padrão. Perfil profissional: ${profile}.`,
           profile,
-          professionalName: professional.name,
-          councilNumber: professional.councilNumber,
+          professionalName: professional.name || 'Profissional Responsável',
+          councilNumber: professional.councilNumber || 'Conselho Profissional',
         }),
       });
 
@@ -129,7 +134,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
       }
     } catch (e) {
       console.error(e);
-      setDocContent('Documento emitido para acompanhamento clínico especializado.');
+      setDocContent('Atesto para os devidos fins que o(a) paciente acima identificado(a) encontra-se em acompanhamento clínico nesta data.');
     } finally {
       setIsGeneratingAI(false);
     }
@@ -138,31 +143,34 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
   const handleCreateDocument = (e: React.FormEvent) => {
     e.preventDefault();
     const patient = patients.find((p) => p.id === patientId);
-    if (!patient) return;
+    const finalPatName = patient ? patient.name : manualPatientName.trim();
+    if (!finalPatName) return;
 
     const newDoc: ClinicalDocument = {
       id: `doc-${Date.now()}`,
-      patientId: patient.id,
-      patientName: patient.name,
-      patientCpf: patient.cpf,
+      patientId: patient ? patient.id : `p-ext-${Date.now()}`,
+      patientName: finalPatName,
+      patientCpf: patient ? patient.cpf : manualPatientCpf.trim() || undefined,
       type: docType,
-      title: docTitle || getDocumentTypeLabel(docType),
+      title: docTitle.trim() || getDocumentTypeLabel(docType),
       date: new Date().toLocaleDateString('pt-BR'),
-      content: docContent || 'Documento clínico emitido via plataforma PSICOOL.',
-      cid11: diagnosis || patient.cid11,
+      content: docContent.trim() || 'Documento clínico emitido via ecossistema PSICOOL.',
+      cid11: diagnosis.trim() || undefined,
       daysOfRest: docType.includes('atestado') ? daysOfRest : undefined,
-      professionalName: professional.name,
-      councilNumber: professional.councilNumber,
+      professionalName: professional.name || 'Profissional Responsável',
+      councilNumber: professional.councilNumber || 'Conselho Profissional',
       rqe: professional.rqe,
       verificationHash: `PSI-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
       status: 'emitido',
     };
 
     onAddDocument(newDoc);
-    setSelectedDoc(newDoc);
+    setSelectedDocId(newDoc.id);
     setShowNewModal(false);
     setDocContent('');
     setDocTitle('');
+    setManualPatientName('');
+    setManualPatientCpf('');
   };
 
   const getDocumentTypeLabel = (type: DocumentType) => {
@@ -176,7 +184,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
       case 'receita_simples':
         return 'Receituário Simples';
       case 'atestado_medico':
-        return 'Atestado Médico Psiquiátrico (Afastamento/INSS)';
+        return 'Atestado Médico Psiquiátrico (Afastamento)';
       case 'atestado_psicologico':
         return 'Atestado Psicológico (Res. CFP 06/2019)';
       case 'relatorio_psicologico':
@@ -206,7 +214,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
             Emissor Clínico Inteligente PSICOOL
           </h1>
           <p className="text-xs text-purple-300/70">
-            Receituários controlados (A, B, C1), atestados de afastamento, relatórios e laudos com assinatura e validação digital.
+            Receituários controlados (A, B, C1), atestados de afastamento, relatórios e laudos com impressão timbrada e validação digital.
           </p>
         </div>
 
@@ -248,32 +256,32 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
             <div className="flex items-center gap-1.5 flex-wrap text-xs">
               <button
                 onClick={() => setActiveFilter('todos')}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  activeFilter === 'todos' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300/70 hover:text-white'
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  activeFilter === 'todos' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300 hover:text-white'
                 }`}
               >
                 Todos ({documents.length})
               </button>
               <button
                 onClick={() => setActiveFilter('receitas')}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  activeFilter === 'receitas' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300/70 hover:text-white'
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  activeFilter === 'receitas' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300 hover:text-white'
                 }`}
               >
-                Receitas Controladas
+                Receitas
               </button>
               <button
                 onClick={() => setActiveFilter('atestados')}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  activeFilter === 'atestados' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300/70 hover:text-white'
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  activeFilter === 'atestados' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300 hover:text-white'
                 }`}
               >
                 Atestados
               </button>
               <button
                 onClick={() => setActiveFilter('laudos')}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  activeFilter === 'laudos' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300/70 hover:text-white'
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  activeFilter === 'laudos' ? 'bg-[#bf5af2] text-white' : 'bg-[#0b0616] text-purple-300 hover:text-white'
                 }`}
               >
                 Laudos & Relatórios
@@ -291,7 +299,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
                 return (
                   <div
                     key={doc.id}
-                    onClick={() => setSelectedDoc(doc)}
+                    onClick={() => setSelectedDocId(doc.id)}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-[#1c1236] border-[#bf5af2] shadow-[0_0_15px_rgba(191,90,242,0.25)]'
@@ -326,9 +334,12 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-[#120b24] rounded-2xl border border-[#2a1b4e] text-purple-300/60">
-                <FileText className="w-8 h-8 mx-auto mb-2 text-purple-400/40" />
-                <p className="text-xs">Nenhum documento encontrado.</p>
+              <div className="p-8 text-center bg-[#120b24] rounded-2xl border border-[#2a1b4e] text-purple-300/60 space-y-2">
+                <FileText className="w-8 h-8 mx-auto text-purple-400/40" />
+                <p className="text-xs font-semibold text-white">Nenhum documento emitido ainda</p>
+                <p className="text-[11px] text-purple-300/60">
+                  Clique no botão acima para emitir receitas de controle especial, atestados ou laudos oficiais.
+                </p>
               </div>
             )}
           </div>
@@ -364,129 +375,108 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar</span>
+                        <span>Copiar Texto</span>
                       </>
                     )}
                   </button>
 
                   <button
                     onClick={handlePrint}
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>Imprimir / PDF</span>
+                    <span>Imprimir / Salvar PDF</span>
                   </button>
                 </div>
               </div>
 
-              {/* Clinic Timbrated Header */}
-              <div className="text-center pb-4 border-b-2 border-slate-900 space-y-1">
-                <div className="inline-flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-lg bg-purple-700 flex items-center justify-center text-white font-black text-xs">
-                    Ψ
-                  </div>
-                  <span className="font-extrabold text-base tracking-tight text-slate-900 uppercase">
-                    {professional.clinicName}
-                  </span>
-                </div>
-                <h2 className="text-xs text-slate-600">
-                  {professional.name} • {professional.councilNumber} {professional.rqe ? `• ${professional.rqe}` : ''}
+              {/* Official Header */}
+              <div className="text-center pb-4 border-b-2 border-slate-900/80 space-y-1">
+                <h2 className="text-lg font-black tracking-tight text-slate-900 uppercase">
+                  {professional.clinicName || 'Consultório Clínico Especializado'}
                 </h2>
+                <p className="text-xs font-bold text-slate-700">
+                  {professional.name || 'Profissional Responsável'} • {professional.councilNumber || 'CRP / CRM'}
+                  {professional.rqe ? ` • ${professional.rqe}` : ''}
+                </p>
                 <p className="text-[11px] text-slate-500">
-                  {professional.clinicAddress} • Tel: {professional.phone}
+                  {professional.clinicAddress || 'Atendimento Clínico Presencial e Telemedicina'} • {professional.phone || ''}
                 </p>
               </div>
 
-              {/* Document Title & Identification */}
-              <div className="space-y-2">
-                <h3 className="text-lg font-black text-center text-slate-900 uppercase tracking-wide">
+              {/* Document Title */}
+              <div className="text-center py-2">
+                <h3 className="text-base font-extrabold uppercase tracking-wide text-slate-900 border-b border-slate-300 inline-block pb-1">
                   {selectedDoc.title}
                 </h3>
-                
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
-                  <p><strong>Paciente:</strong> {selectedDoc.patientName}</p>
-                  {selectedDoc.patientCpf && <p><strong>CPF:</strong> {selectedDoc.patientCpf}</p>}
-                  {selectedDoc.cid11 && <p><strong>Diagnóstico / CID-11:</strong> {selectedDoc.cid11}</p>}
-                  <p><strong>Data de Emissão:</strong> {selectedDoc.date}</p>
+              </div>
+
+              {/* Patient Identification Box */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span><strong>Paciente:</strong> {selectedDoc.patientName}</span>
+                  {selectedDoc.patientCpf && <span><strong>CPF:</strong> {selectedDoc.patientCpf}</span>}
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span><strong>Data de Emissão:</strong> {selectedDoc.date}</span>
+                  {selectedDoc.cid11 && <span><strong>CID-11 / Hipótese:</strong> {selectedDoc.cid11}</span>}
                 </div>
               </div>
 
-              {/* Specific Medications List if Prescription */}
-              {selectedDoc.medications && selectedDoc.medications.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                    Posologia & Medicamentos Prescritos
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    {selectedDoc.medications.map((med, idx) => (
-                      <div key={idx} className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
-                        <div className="flex items-center justify-between font-bold text-slate-900">
-                          <span>{idx + 1}. {med.name} {med.dosage}</span>
-                          <span className="text-purple-800 font-mono text-[11px]">{med.quantity}</span>
-                        </div>
-                        <p className="text-slate-700 mt-1">{med.posology}</p>
-                        {med.instructions && (
-                          <p className="text-slate-500 italic text-[11px] mt-0.5">Obs: {med.instructions}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Document Main Body Content */}
-              <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-serif min-h-[140px]">
+              {/* Body Content */}
+              <div className="text-xs text-slate-800 leading-relaxed min-h-[160px] whitespace-pre-line font-sans px-1">
                 {selectedDoc.content}
               </div>
 
-              {/* Signature & Council Verification */}
-              <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 bg-slate-100 border border-slate-300 rounded-lg flex flex-col items-center justify-center text-center p-1">
-                    <ShieldCheck className="w-5 h-5 text-purple-700" />
-                    <span className="text-[8px] font-mono text-slate-600 mt-0.5">E-VALID</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 leading-tight">
-                    <p className="font-semibold text-slate-800">Assinatura Digital Autenticada</p>
-                    <p>Chave: {selectedDoc.verificationHash}</p>
-                    <p>Em conformidade com as normas ICP-Brasil e CFP/CFM.</p>
-                  </div>
-                </div>
-
-                <div className="text-center text-xs">
-                  <div className="w-44 border-b border-slate-900 mb-1" />
-                  <p className="font-bold text-slate-900">{professional.name}</p>
-                  <p className="text-slate-600 text-[11px]">{professional.councilNumber}</p>
+              {/* Signature Section */}
+              <div className="pt-8 text-center space-y-1 border-t border-slate-200">
+                <div className="w-56 border-b border-slate-800 mx-auto mb-1" />
+                <p className="text-xs font-bold text-slate-900">{professional.name || 'Profissional Responsável'}</p>
+                <p className="text-[11px] text-slate-600">{professional.councilNumber || 'Conselho Profissional'}</p>
+                <div className="pt-2 flex items-center justify-center gap-1 text-[10px] text-emerald-700 font-mono font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Documento emitido e assinado digitalmente • Validação: {selectedDoc.verificationHash}</span>
                 </div>
               </div>
 
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center p-12 bg-[#120b24] rounded-3xl border border-[#2a1b4e] text-purple-300/60">
-              <p className="text-sm">Selecione um documento para visualizar a via timbrada.</p>
+            <div className="p-12 rounded-3xl bg-[#120b24] border border-[#2a1b4e] text-center space-y-4 shadow-xl">
+              <FileCheck className="w-12 h-12 text-purple-400/40 mx-auto" />
+              <div className="max-w-sm mx-auto">
+                <h3 className="text-base font-bold text-white">Nenhum Documento Selecionado</h3>
+                <p className="text-xs text-purple-300/70 mt-1">
+                  Selecione um documento ao lado ou emita um novo receituário de controle especial, atestado ou laudo pericial.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md inline-flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Emitir Primeiro Documento</span>
+              </button>
             </div>
           )}
         </div>
 
       </div>
 
-      {/* New Document Modal */}
+      {/* Modal: New Document Form */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl bg-[#120b24] border border-[#bf5af2] p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-[#120b24] border border-[#bf5af2] p-6 sm:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white">Emitir Documento Oficial</h3>
-                <p className="text-xs text-purple-300/70">
-                  Compatível com normas do CFP (Res. 06/2019) e CFM / Portaria 344/98.
-                </p>
+                <h3 className="text-lg font-bold text-white">Emitir Novo Documento Clínico</h3>
+                <p className="text-xs text-purple-300/70">Preencha os dados ou use a Alegra AI para redigir o documento conforme CFP / CFM.</p>
               </div>
               <button
                 onClick={() => setShowNewModal(false)}
-                className="p-1 rounded-lg text-purple-400 hover:text-white"
+                className="text-purple-300 hover:text-white text-xs px-2 py-1 rounded-lg bg-[#0b0616]"
               >
-                <X className="w-5 h-5" />
+                ✕
               </button>
             </div>
 
@@ -536,22 +526,33 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-purple-300 font-semibold block mb-1">Paciente</label>
-                  <select
-                    value={patientId}
-                    onChange={(e) => {
-                      setPatientId(e.target.value);
-                      const pat = patients.find((p) => p.id === e.target.value);
-                      if (pat) setDiagnosis(pat.diagnosisHypothesis);
-                    }}
-                    className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
-                  >
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-[#120b24]">
-                        {p.name} ({p.cpf || 'Sem CPF'})
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-purple-300 font-semibold block mb-1">Paciente *</label>
+                  {patients.length > 0 ? (
+                    <select
+                      value={patientId}
+                      onChange={(e) => {
+                        setPatientId(e.target.value);
+                        const pat = patients.find((p) => p.id === e.target.value);
+                        if (pat) setDiagnosis(pat.diagnosisHypothesis);
+                      }}
+                      className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
+                    >
+                      {patients.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-[#120b24]">
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={manualPatientName}
+                      onChange={(e) => setManualPatientName(e.target.value)}
+                      placeholder="Nome completo do paciente"
+                      className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -595,7 +596,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
 
               {/* AI Auto-Complete Button */}
               <div className="flex items-center justify-between pt-1">
-                <label className="text-purple-300 font-semibold">Corpo do Documento & Prescrição</label>
+                <label className="text-purple-300 font-semibold">Corpo do Documento & Prescrição *</label>
                 <button
                   type="button"
                   onClick={handleGenerateWithAI}
@@ -611,7 +612,7 @@ export const ClinicalDocuments: React.FC<ClinicalDocumentsProps> = ({
                 rows={7}
                 value={docContent}
                 onChange={(e) => setDocContent(e.target.value)}
-                placeholder="Insira o texto técnico, declaração de aptidão ou clique no botão acima para a IA redigir com fundamentação ética."
+                placeholder="Insira o texto técnico, declaração de aptidão ou prescrição, ou clique no botão acima para a Alegra AI redigir com fundamentação ética."
                 className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-3 text-white font-sans focus:outline-none focus:border-[#bf5af2]"
                 required
               />

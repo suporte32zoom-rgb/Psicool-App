@@ -15,12 +15,13 @@ import {
   FileCheck,
   Printer
 } from 'lucide-react';
-import { ScaleAssessment, ScaleType, Patient, ProfessionalProfile } from '../types';
+import { ScaleAssessment, ScaleType, Patient, ProfessionalProfile, ProfessionalData } from '../types';
 
 interface PsychometricScalesProps {
   assessments: ScaleAssessment[];
   patients: Patient[];
   profile: ProfessionalProfile;
+  professional?: ProfessionalData;
   onSaveAssessment: (assessment: ScaleAssessment) => void;
   initialScaleType?: ScaleType | null;
   triggerOpenScale?: boolean;
@@ -179,6 +180,7 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
   assessments,
   patients,
   profile,
+  professional,
   onSaveAssessment,
   initialScaleType,
   triggerOpenScale,
@@ -186,6 +188,7 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
 }) => {
   const [selectedScaleType, setSelectedScaleType] = useState<ScaleType>('phq9');
   const [selectedPatientId, setSelectedPatientId] = useState<string>(patients[0]?.id || '');
+  const [manualPatientName, setManualPatientName] = useState<string>('');
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [isEvaluatingAI, setIsEvaluatingAI] = useState(false);
   const [aiInterpretation, setAiInterpretation] = useState('');
@@ -221,7 +224,7 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
 
   const handleEvaluateAI = async () => {
     const patient = patients.find((p) => p.id === selectedPatientId);
-    if (!patient) return;
+    const patName = patient ? patient.name : manualPatientName || 'Paciente';
 
     setIsEvaluatingAI(true);
     try {
@@ -230,7 +233,7 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scaleType: selectedScaleType,
-          patientName: patient.name,
+          patientName: patName,
           score: totalScore,
           maxScore: activeScale.maxScore,
           answers,
@@ -252,12 +255,12 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
 
   const handleSaveAssessmentToHistory = () => {
     const patient = patients.find((p) => p.id === selectedPatientId);
-    if (!patient) return;
+    const patName = patient ? patient.name : manualPatientName.trim() || 'Paciente';
 
     const newAssessment: ScaleAssessment = {
       id: `scale-${Date.now()}`,
-      patientId: patient.id,
-      patientName: patient.name,
+      patientId: patient ? patient.id : `p-ext-${Date.now()}`,
+      patientName: patName,
       scaleType: selectedScaleType,
       date: new Date().toLocaleDateString('pt-BR'),
       score: totalScore,
@@ -325,17 +328,27 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
                 <User className="w-3.5 h-3.5 text-[#bf5af2]" />
                 <span>Paciente em Avaliação</span>
               </label>
-              <select
-                value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
-                className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#bf5af2]"
-              >
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-[#120b24]">
-                    {p.name} ({p.diagnosisHypothesis.substring(0, 30)}...)
-                  </option>
-                ))}
-              </select>
+              {patients.length > 0 ? (
+                <select
+                  value={selectedPatientId}
+                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#bf5af2]"
+                >
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-[#120b24]">
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={manualPatientName}
+                  onChange={(e) => setManualPatientName(e.target.value)}
+                  placeholder="Digite o nome do paciente"
+                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#bf5af2]"
+                />
+              )}
             </div>
 
             {/* Scale Picker */}
@@ -582,9 +595,13 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
             {/* Timbrated Header */}
             <div className="text-center pb-4 border-b-2 border-slate-900 space-y-1">
               <h2 className="text-base font-extrabold uppercase text-slate-900 tracking-tight">
-                Consultório Clínico Especializado • PSICOOL
+                {professional?.clinicName || 'Consultório Clínico Especializado • PSICOOL'}
               </h2>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs font-semibold text-slate-700">
+                {professional?.name || (profile === 'psicologo' ? 'Psicólogo(a) Responsável' : 'Médico(a) Psiquiatra')} • {professional?.councilNumber || (profile === 'psicologo' ? 'CRP' : 'CRM')}
+                {professional?.rqe ? ` • ${professional.rqe}` : ''}
+              </p>
+              <p className="text-[11px] text-slate-500">
                 {profile === 'psicologo' ? 'Avaliação Psicológica Padronizada (CFP)' : 'Avaliação Psiquiátrica & Psicometria (CFM)'}
               </p>
             </div>
@@ -593,7 +610,7 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <div>
-                  <strong>Paciente:</strong> {patients.find((p) => p.id === selectedPatientId)?.name || 'Paciente'}
+                  <strong>Paciente:</strong> {patients.find((p) => p.id === selectedPatientId)?.name || manualPatientName || 'Paciente'}
                 </div>
                 <div>
                   <strong>Data:</strong> {new Date().toLocaleDateString('pt-BR')}
@@ -649,8 +666,9 @@ export const PsychometricScales: React.FC<PsychometricScalesProps> = ({
                 Relatório gerado eletronicamente no ecossistema PSICOOL.
               </div>
               <div className="text-center">
-                <div className="w-40 border-b border-slate-900 mb-1" />
-                <p className="font-bold text-slate-900">Assinatura do Profissional</p>
+                <div className="w-48 border-b border-slate-900 mb-1" />
+                <p className="font-bold text-slate-900">{professional?.name || 'Profissional Responsável'}</p>
+                <p className="text-[10px] text-slate-500">{professional?.councilNumber || 'Conselho Profissional'}</p>
               </div>
             </div>
 

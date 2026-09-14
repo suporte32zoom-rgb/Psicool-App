@@ -78,6 +78,8 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
 
   // New appointment form state
   const [patientId, setPatientId] = useState(patients[0]?.id || '');
+  const [manualPatientName, setManualPatientName] = useState('');
+  const [manualPatientPhone, setManualPatientPhone] = useState('');
   const [dateStr, setDateStr] = useState('Hoje');
   const [timeStr, setTimeStr] = useState('14:00');
   const [modality, setModality] = useState<'telemedicina' | 'presencial'>('telemedicina');
@@ -288,7 +290,10 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     const patient = patients.find((p) => p.id === patientId);
-    if (!patient) return;
+    const pName = patient ? patient.name : manualPatientName.trim();
+    const pPhone = patient ? patient.phone : manualPatientPhone.trim() || '(11) 99999-9999';
+
+    if (!pName) return;
 
     let googleEventId: string | undefined = undefined;
     let isSynced = false;
@@ -299,15 +304,15 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
         const { startISO, endISO } = parseAppointmentDateTime(dateStr, timeStr);
         const isTelemed = modality === 'telemedicina';
         const createdEvent = await createCalendarEvent({
-          summary: `Consulta Clínica: ${patient.name}`,
-          description: `Agendamento registrado no PSICOOL.\nPaciente: ${patient.name}\nContato: ${patient.phone}\nModalidade: ${isTelemed ? 'Telemedicina HD' : 'Presencial'}`,
+          summary: `Consulta Clínica: ${pName}`,
+          description: `Agendamento registrado no PSICOOL.\nPaciente: ${pName}\nContato: ${pPhone}\nModalidade: ${isTelemed ? 'Telemedicina HD' : 'Presencial'}`,
           startDateTime: startISO,
           endDateTime: endISO,
           location: isTelemed ? 'Telemedicina HD PSICOOL' : 'Consultório PSICOOL',
         });
         googleEventId = createdEvent.id;
         isSynced = true;
-        setSyncFeedback(`Consulta de ${patient.name} criada e sincronizada no Google Calendar!`);
+        setSyncFeedback(`Consulta de ${pName} criada e sincronizada no Google Calendar!`);
       } catch (err) {
         console.warn('Could not auto-sync on create:', err);
       }
@@ -315,9 +320,9 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
 
     const newApt: Appointment = {
       id: `apt-${Date.now()}`,
-      patientId: patient.id,
-      patientName: patient.name,
-      patientPhone: patient.phone,
+      patientId: patient ? patient.id : `p-${Date.now()}`,
+      patientName: pName,
+      patientPhone: pPhone,
       date: dateStr,
       time: timeStr,
       durationMinutes: 50,
@@ -330,6 +335,8 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
 
     onAddAppointment(newApt);
     setShowNewModal(false);
+    setManualPatientName('');
+    setManualPatientPhone('');
     if (googleToken) fetchGoogleEvents();
   };
 
@@ -1049,17 +1056,37 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
             <form onSubmit={handleCreateAppointment} className="space-y-4 text-xs">
               <div>
                 <label className="text-purple-300 font-semibold block mb-1">Paciente</label>
-                <select
-                  value={patientId}
-                  onChange={(e) => setPatientId(e.target.value)}
-                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
-                >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id} className="bg-[#120b24]">
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                {patients.length > 0 ? (
+                  <select
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
+                  >
+                    {patients.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-[#120b24]">
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={manualPatientName}
+                      onChange={(e) => setManualPatientName(e.target.value)}
+                      placeholder="Nome do paciente"
+                      required
+                      className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
+                    />
+                    <input
+                      type="text"
+                      value={manualPatientPhone}
+                      onChange={(e) => setManualPatientPhone(e.target.value)}
+                      placeholder="WhatsApp / Telefone (ex: 11 99999-9999)"
+                      className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">

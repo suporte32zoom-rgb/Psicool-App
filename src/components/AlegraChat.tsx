@@ -350,11 +350,17 @@ Como assistente de máxima especialização:
               onChange={(e) => setSelectedPatientId(e.target.value)}
               className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer text-xs"
             >
-              {patients.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#120b24] text-white">
-                  {p.name}
+              {patients.length > 0 ? (
+                patients.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#120b24] text-white">
+                    {p.name}
+                  </option>
+                ))
+              ) : (
+                <option value="" className="bg-[#120b24] text-purple-300">
+                  Consulta Geral / Sem Paciente
                 </option>
-              ))}
+              )}
             </select>
           </div>
 

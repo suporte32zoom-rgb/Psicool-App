@@ -2,23 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   MapPin, 
-  Video, 
-  Plus, 
-  Shield, 
-  FileText, 
-  Clock, 
   Phone, 
   Wifi, 
-  CheckCircle, 
+  Clock, 
+  DollarSign, 
+  Plus, 
   Copy, 
   Check, 
-  Edit3, 
+  FileText, 
   UserCheck, 
-  Lock, 
-  ExternalLink,
+  CheckCircle, 
+  ShieldCheck, 
   Sparkles,
-  DollarSign,
-  Printer
+  Lock,
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { OfficeSpace, ProfessionalData, ProfessionalProfile, Patient } from '../types';
 
@@ -43,7 +41,9 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
   initialSubTab,
   onClearTrigger,
 }) => {
-  const [activeTab, setActiveTab] = useState<'locais' | 'tcle_contratos' | 'dados_profissional'>('locais');
+  const [activeTab, setActiveTab] = useState<'locais' | 'tcle_contratos' | 'dados_profissional'>(
+    initialSubTab || 'locais'
+  );
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -60,7 +60,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
   const [officeType, setOfficeType] = useState<'fisico' | 'virtual'>('fisico');
   const [officeAddress, setOfficeAddress] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
-  const [hourlyCost, setHourlyCost] = useState(45);
+  const [hourlyCost, setHourlyCost] = useState<number | ''>('');
   const [secretaryPhone, setSecretaryPhone] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
   const [operatingHours, setOperatingHours] = useState('Segunda a Sexta das 08:00 às 20:00');
@@ -76,6 +76,17 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
   const [pixKey, setPixKey] = useState(professional.pixKey);
   const [isSavedAlert, setIsSavedAlert] = useState(false);
 
+  useEffect(() => {
+    setProfName(professional.name);
+    setProfCouncilNumber(professional.councilNumber);
+    setProfRqe(professional.rqe || '');
+    setProfEmail(professional.email);
+    setProfPhone(professional.phone);
+    setClinicName(professional.clinicName);
+    setClinicAddress(professional.clinicAddress);
+    setPixKey(professional.pixKey);
+  }, [professional]);
+
   const handleCopyTelemedLink = (link: string) => {
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
@@ -86,14 +97,14 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
     e.preventDefault();
     onUpdateProfessional({
       ...professional,
-      name: profName,
-      councilNumber: profCouncilNumber,
-      rqe: profRqe,
-      email: profEmail,
-      phone: profPhone,
-      clinicName,
-      clinicAddress,
-      pixKey,
+      name: profName.trim(),
+      councilNumber: profCouncilNumber.trim(),
+      rqe: profRqe.trim(),
+      email: profEmail.trim(),
+      phone: profPhone.trim(),
+      clinicName: clinicName.trim(),
+      clinicAddress: clinicAddress.trim(),
+      pixKey: pixKey.trim(),
     });
     setIsSavedAlert(true);
     setTimeout(() => setIsSavedAlert(false), 3000);
@@ -101,21 +112,28 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
 
   const handleCreateOffice = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!officeName.trim()) return;
+
     const newOff: OfficeSpace = {
       id: `off-${Date.now()}`,
-      name: officeName,
+      name: officeName.trim(),
       type: officeType,
-      address: officeAddress,
-      roomNumber: roomNumber || undefined,
-      hourlyRentalCost: officeType === 'fisico' ? Number(hourlyCost) : undefined,
-      secretaryPhone: secretaryPhone || undefined,
-      wifiPassword: wifiPassword || undefined,
-      operatingHours,
+      address: officeAddress.trim() || (officeType === 'virtual' ? 'https://telemed.psicool.com.br/sala-privada' : 'Consultório Principal'),
+      roomNumber: roomNumber.trim() || undefined,
+      hourlyRentalCost: officeType === 'fisico' && hourlyCost ? Number(hourlyCost) : undefined,
+      secretaryPhone: secretaryPhone.trim() || undefined,
+      wifiPassword: wifiPassword.trim() || undefined,
+      operatingHours: operatingHours.trim(),
     };
+
     onAddOffice(newOff);
     setShowNewOfficeModal(false);
     setOfficeName('');
     setOfficeAddress('');
+    setRoomNumber('');
+    setHourlyCost('');
+    setSecretaryPhone('');
+    setWifiPassword('');
   };
 
   return (
@@ -189,97 +207,116 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {offices.map((off) => {
-              const isVirtual = off.type === 'virtual';
+          {offices.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {offices.map((off) => {
+                const isVirtual = off.type === 'virtual';
 
-              return (
-                <div
-                  key={off.id}
-                  className="p-5 rounded-2xl bg-[#120b24] border border-[#2a1b4e] hover:border-[#bf5af2]/50 transition-all space-y-4 shadow-md flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        isVirtual
-                          ? 'bg-[#ff007f]/20 text-[#ff007f] border border-[#ff007f]/40'
-                          : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                      }`}>
-                        {isVirtual ? 'Telemedicina HD' : 'Consultório Presencial'}
-                      </span>
-
-                      {off.hourlyRentalCost && (
-                        <span className="text-xs font-mono font-bold text-purple-300">
-                          R$ {off.hourlyRentalCost.toFixed(2)} / hora
+                return (
+                  <div
+                    key={off.id}
+                    className="p-5 rounded-2xl bg-[#120b24] border border-[#2a1b4e] hover:border-[#bf5af2]/50 transition-all space-y-4 shadow-md flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          isVirtual
+                            ? 'bg-[#ff007f]/20 text-[#ff007f] border border-[#ff007f]/40'
+                            : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        }`}>
+                          {isVirtual ? 'Telemedicina HD' : 'Consultório Presencial'}
                         </span>
-                      )}
-                    </div>
 
-                    <h3 className="text-base font-bold text-white">{off.name}</h3>
-
-                    <div className="text-xs text-purple-300/80 space-y-1.5 pt-1">
-                      <p className="flex items-start gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#bf5af2] shrink-0 mt-0.5" />
-                        <span className="break-words">{off.address}</span>
-                      </p>
-
-                      {off.roomNumber && (
-                        <p className="flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                          <span>{off.roomNumber}</span>
-                        </p>
-                      )}
-
-                      {off.secretaryPhone && (
-                        <p className="flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                          <span>Secretaria: {off.secretaryPhone}</span>
-                        </p>
-                      )}
-
-                      {off.wifiPassword && (
-                        <p className="flex items-center gap-1.5 font-mono text-[11px]">
-                          <Wifi className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                          <span>Wi-Fi: {off.wifiPassword}</span>
-                        </p>
-                      )}
-
-                      <p className="flex items-center gap-1.5 text-[11px] text-purple-400/60 pt-1">
-                        <Clock className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                        <span>{off.operatingHours}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="pt-3 border-t border-[#2a1b4e]">
-                    {isVirtual ? (
-                      <button
-                        onClick={() => handleCopyTelemedLink(off.address)}
-                        className="w-full py-2 rounded-xl bg-[#0b0616] hover:bg-[#1a0f35] border border-[#2a1b4e] text-xs font-semibold text-[#bf5af2] flex items-center justify-center gap-1.5 transition-all"
-                      >
-                        {copiedLink ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Link Permanente Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copiar Link da Sala Virtual</span>
-                          </>
+                        {off.hourlyRentalCost && (
+                          <span className="text-xs font-mono font-bold text-purple-300">
+                            R$ {off.hourlyRentalCost.toFixed(2)} / hora
+                          </span>
                         )}
-                      </button>
-                    ) : (
-                      <div className="text-center text-[11px] text-emerald-400 font-semibold py-1">
-                        ✓ Consultório Ativo para Agendamentos
                       </div>
-                    )}
+
+                      <h3 className="text-base font-bold text-white">{off.name}</h3>
+
+                      <div className="text-xs text-purple-300/80 space-y-1.5 pt-1">
+                        <p className="flex items-start gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#bf5af2] shrink-0 mt-0.5" />
+                          <span className="break-words">{off.address}</span>
+                        </p>
+
+                        {off.roomNumber && (
+                          <p className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <span>{off.roomNumber}</span>
+                          </p>
+                        )}
+
+                        {off.secretaryPhone && (
+                          <p className="flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <span>Secretaria: {off.secretaryPhone}</span>
+                          </p>
+                        )}
+
+                        {off.wifiPassword && (
+                          <p className="flex items-center gap-1.5 font-mono text-[11px]">
+                            <Wifi className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <span>Wi-Fi: {off.wifiPassword}</span>
+                          </p>
+                        )}
+
+                        <p className="flex items-center gap-1.5 text-[11px] text-purple-400/60 pt-1">
+                          <Clock className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <span>{off.operatingHours}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="pt-3 border-t border-[#2a1b4e]">
+                      {isVirtual ? (
+                        <button
+                          onClick={() => handleCopyTelemedLink(off.address)}
+                          className="w-full py-2 rounded-xl bg-[#0b0616] hover:bg-[#1a0f35] border border-[#2a1b4e] text-xs font-semibold text-[#bf5af2] flex items-center justify-center gap-1.5 transition-all"
+                        >
+                          {copiedLink ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Link Permanente Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copiar Link da Sala Virtual</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="text-center text-[11px] text-emerald-400 font-semibold py-1">
+                          ✓ Consultório Ativo para Agendamentos
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-10 rounded-3xl bg-[#120b24] border border-[#2a1b4e] text-center space-y-3">
+              <Building2 className="w-10 h-10 text-purple-400/40 mx-auto" />
+              <div>
+                <p className="text-sm font-bold text-white">Nenhum Espaço Clínico Cadastrado</p>
+                <p className="text-xs text-purple-300/70 mt-1 max-w-md mx-auto">
+                  Cadastre seus consultórios físicos (salas de atendimento, clínicas ou sublocações) ou crie salas virtuais para telemedicina segura.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowNewOfficeModal(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Cadastrar Primeiro Espaço</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -290,11 +327,11 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
           <div className="lg:col-span-6 space-y-4">
             <div className="p-6 rounded-3xl bg-[#120b24] border border-[#2a1b4e] space-y-4">
               <div className="flex items-center gap-2 text-xs font-bold text-[#bf5af2] uppercase">
-                <Shield className="w-4 h-4" />
+                <ShieldCheck className="w-4 h-4" />
                 <span>Termo de Consentimento Livre e Esclarecido (TCLE)</span>
               </div>
               <h3 className="text-base font-bold text-white">
-                Consentimento para Atendimento Online & Telemedicina
+                Consentimento Informado para Teleatendimento
               </h3>
               <p className="text-xs text-purple-200/80 leading-relaxed">
                 Em conformidade com a <strong>Resolução CFP nº 04/2020</strong> e <strong>Resolução CFM nº 2.314/2022</strong>, além da Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).
@@ -309,17 +346,23 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
 
               <div className="space-y-2">
                 <label className="text-xs font-bold text-purple-300 block">Status de Assinatura dos Pacientes</label>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {patients.map((p) => (
-                    <div key={p.id} className="p-2.5 rounded-xl bg-[#0b0616] border border-[#2a1b4e] flex items-center justify-between text-xs">
-                      <span className="text-white font-semibold">{p.name}</span>
-                      <span className="text-emerald-400 flex items-center gap-1 font-bold text-[11px]">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Assinado Digitalmente
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {patients.length > 0 ? (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {patients.map((p) => (
+                      <div key={p.id} className="p-2.5 rounded-xl bg-[#0b0616] border border-[#2a1b4e] flex items-center justify-between text-xs">
+                        <span className="text-white font-semibold">{p.name}</span>
+                        <span className="text-emerald-400 flex items-center gap-1 font-bold text-[11px]">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Assinado Digitalmente
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-[#0b0616] rounded-xl border border-[#2a1b4e] text-center text-xs text-purple-300/60">
+                    Cadastre pacientes para acompanhar o status de envio e assinatura do TCLE.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -349,10 +392,10 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                   <span>Gerar Contrato Personalizado para Novo Paciente</span>
                 </span>
                 <p className="text-xs text-purple-300/70">
-                  A Alegra AI preenche automaticamente as cláusulas com os dados do paciente e envia para assinatura digital.
+                  A Alegra AI preenche automaticamente as cláusulas com os dados do profissional e do paciente.
                 </p>
                 <button
-                  onClick={() => alert('Contrato padrão gerado e pronto para envio!')}
+                  onClick={() => alert('Modelo de contrato pronto para emissão e personalização!')}
                   className="w-full py-2 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
                 >
                   Gerar Contrato em PDF Timbrado
@@ -373,37 +416,39 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
               <span>Dados Profissionais & Timbre Clínico</span>
             </h2>
             <p className="text-xs text-purple-300/70">
-              Esses dados são impressos no cabeçalho e rodapé de todos os laudos, receitas e recibos.
+              Esses dados são impressos automaticamente no cabeçalho e rodapé de todos os seus laudos, receitas, atestados e recibos.
             </p>
           </div>
 
           {isSavedAlert && (
             <div className="p-3 bg-emerald-950/80 border border-emerald-500 rounded-xl text-xs text-emerald-300 font-bold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>Dados atualizados com sucesso!</span>
+              <span>Dados profissionais salvos com sucesso!</span>
             </div>
           )}
 
           <form onSubmit={handleSaveProfessional} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-purple-300 font-semibold block mb-1">Nome Completo do Profissional</label>
+                <label className="text-purple-300 font-semibold block mb-1">Nome Completo do Profissional *</label>
                 <input
                   type="text"
                   value={profName}
                   onChange={(e) => setProfName(e.target.value)}
-                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
+                  placeholder="Ex: Dra. Maria Silva ou Dr. João Santos"
+                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:border-[#bf5af2] focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-purple-300 font-semibold block mb-1">Número de Registro (CRP / CRM)</label>
+                <label className="text-purple-300 font-semibold block mb-1">Número de Registro (CRP / CRM) *</label>
                 <input
                   type="text"
                   value={profCouncilNumber}
                   onChange={(e) => setProfCouncilNumber(e.target.value)}
-                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
+                  placeholder="Ex: CRP 06/123456 ou CRM 123456-SP"
+                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:border-[#bf5af2] focus:outline-none"
                   required
                 />
               </div>
@@ -415,7 +460,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                 type="text"
                 value={profRqe}
                 onChange={(e) => setProfRqe(e.target.value)}
-                placeholder="Ex: RQE 78.432 (Psiquiatria) ou Especialista em Neuropsicologia"
+                placeholder="Ex: RQE 78.432 (Psiquiatria da Infância) ou Título de Especialista em Neuropsicologia"
                 className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
               />
             </div>
@@ -427,6 +472,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                   type="email"
                   value={profEmail}
                   onChange={(e) => setProfEmail(e.target.value)}
+                  placeholder="contato@consultorio.com.br"
                   className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
                 />
               </div>
@@ -437,6 +483,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                   type="text"
                   value={profPhone}
                   onChange={(e) => setProfPhone(e.target.value)}
+                  placeholder="(11) 98888-8888"
                   className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
                 />
               </div>
@@ -448,26 +495,29 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                 type="text"
                 value={clinicName}
                 onChange={(e) => setClinicName(e.target.value)}
+                placeholder="Ex: Consultório de Psicologia Clínica & Psiquiatria"
                 className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
               />
             </div>
 
             <div>
-              <label className="text-purple-300 font-semibold block mb-1">Endereço Principal</label>
+              <label className="text-purple-300 font-semibold block mb-1">Endereço Principal / Cidade</label>
               <input
                 type="text"
                 value={clinicAddress}
                 onChange={(e) => setClinicAddress(e.target.value)}
+                placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
                 className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
               />
             </div>
 
             <div>
-              <label className="text-purple-300 font-semibold block mb-1">Chave PIX para Honorários</label>
+              <label className="text-purple-300 font-semibold block mb-1">Chave PIX para Recebimento de Honorários</label>
               <input
                 type="text"
                 value={pixKey}
                 onChange={(e) => setPixKey(e.target.value)}
+                placeholder="CPF, CNPJ, E-mail ou Celular"
                 className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
               />
             </div>
@@ -492,13 +542,13 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
             
             <form onSubmit={handleCreateOffice} className="space-y-3.5 text-xs">
               <div>
-                <label className="text-purple-300 font-semibold block mb-1">Nome do Espaço</label>
+                <label className="text-purple-300 font-semibold block mb-1">Nome do Espaço *</label>
                 <input
                   type="text"
                   value={officeName}
                   onChange={(e) => setOfficeName(e.target.value)}
-                  placeholder="Ex: Consultório Jardins - Sala 4"
-                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
+                  placeholder="Ex: Consultório Principal - Sala 4"
+                  className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white focus:outline-none focus:border-[#bf5af2]"
                   required
                 />
               </div>
@@ -525,7 +575,6 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                   onChange={(e) => setOfficeAddress(e.target.value)}
                   placeholder={officeType === 'fisico' ? 'Rua, número, bairro e cidade' : 'https://telemed.psicool.com.br/...'}
                   className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
-                  required
                 />
               </div>
 
@@ -547,7 +596,8 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({
                     <input
                       type="number"
                       value={hourlyCost}
-                      onChange={(e) => setHourlyCost(Number(e.target.value))}
+                      onChange={(e) => setHourlyCost(e.target.value ? Number(e.target.value) : '')}
+                      placeholder="Ex: 45"
                       className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-2.5 text-white"
                     />
                   </div>

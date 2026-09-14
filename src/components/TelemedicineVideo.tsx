@@ -22,7 +22,8 @@ import {
   Clock, 
   AlertCircle,
   Activity,
-  ChevronRight
+  ChevronRight,
+  User
 } from 'lucide-react';
 import { Patient, ProfessionalProfile, ClinicalEvolution } from '../types';
 
@@ -47,12 +48,8 @@ export const TelemedicineVideo: React.FC<TelemedicineVideoProps> = ({
   const [splitScreenMode, setSplitScreenMode] = useState<boolean>(true);
   const [sideTab, setSideTab] = useState<'anotacoes' | 'prontuario' | 'alegra_live'>('anotacoes');
 
-  // Consultation notes state
-  const [sessionNotes, setSessionNotes] = useState<string>(
-    `Queixa relatada: Paciente relata retorno dos sintomas de insônia inicial e ansiedade antecipatória devido a cobranças no trabalho.
-Exame psíquico: Afeto congruente, humor ansioso, discurso acelerado mas coeso. Nega ideação suicida ou delírios.
-Intervenções na sessão: Treino de relaxamento progressivo e identificação de distorções cognitivas (catastrofização).`
-  );
+  // Consultation notes state (starts clean)
+  const [sessionNotes, setSessionNotes] = useState<string>('');
 
   // Alegra AI generated evolution state
   const [generatedEvolution, setGeneratedEvolution] = useState<string>('');
@@ -60,14 +57,14 @@ Intervenções na sessão: Treino de relaxamento progressivo e identificação d
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
 
-  // Call timer state
-  const [callSeconds, setCallSeconds] = useState<number>(1420); // starts around 23 mins
+  // Call timer state (starts at 0)
+  const [callSeconds, setCallSeconds] = useState<number>(0);
 
   // Local camera video ref
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  const currentPatient = patients.find((p) => p.id === selectedPatientId) || patients[0];
+  const currentPatient = patients.find((p) => p.id === selectedPatientId) || patients[0] || null;
 
   // Timer counter
   useEffect(() => {
@@ -96,12 +93,7 @@ Intervenções na sessão: Treino de relaxamento progressivo e identificação d
             localStreamRef.current = stream;
           }
         } catch (e) {
-          console.log('Webcam permissão não concedida ou dispositivo indisponível, usando fallback visual simulado.');
-        }
-      } else {
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach((track) => track.stop());
-          localStreamRef.current = null;
+          console.log('Webcam permissão não concedida ou dispositivo indisponível.');
         }
       }
     }
@@ -112,108 +104,88 @@ Intervenções na sessão: Treino de relaxamento progressivo e identificação d
       active = false;
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
       }
     };
   }, [inCall, cameraEnabled]);
 
-  const formatTimer = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const toggleCamera = () => {
+    setCameraEnabled(!cameraEnabled);
   };
 
-  // Trigger Alegra AI synthesis directly from consultation notes
+  const toggleMic = () => {
+    setMicEnabled(!micEnabled);
+  };
+
+  const toggleCall = () => {
+    setInCall(!inCall);
+  };
+
+  const toggleScreenShare = async () => {
+    if (!isScreenSharing && navigator.mediaDevices?.getDisplayMedia) {
+      try {
+        await navigator.mediaDevices.getDisplayMedia({ video: true });
+        setIsScreenSharing(true);
+      } catch (err) {
+        console.log('Compartilhamento de tela cancelado.');
+      }
+    } else {
+      setIsScreenSharing(false);
+    }
+  };
+
+  const formatTimer = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Live Evolution Generation with Alegra AI
   const handleGenerateEvolution = async () => {
     if (!sessionNotes.trim()) return;
+
     setIsGenerating(true);
-
     try {
-      const promptText = `Por favor, atue como co-piloto na telemedicina e transforme estas anotações de sessão em uma evolução clínica completa e estruturada para ${currentPatient.name}:\n\n${sessionNotes}`;
-
-      const response = await fetch('/api/alegra', {
+      const response = await fetch('/api/generate-evolution', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: promptText,
+          notes: sessionNotes,
           profile,
-          patientName: currentPatient.name,
+          patientName: currentPatient?.name || 'Paciente',
+          diagnosis: currentPatient?.diagnosisHypothesis || 'Avaliação clínica',
         }),
       });
 
-      if (!response.ok) throw new Error('Falha no processamento');
-
       const data = await response.json();
-      setGeneratedEvolution(data.text);
-      setSideTab('alegra_live');
-    } catch (e) {
-      // Fallback structured evolution
-      const timestamp = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      setGeneratedEvolution(
-        profile === 'psicologo'
-          ? `### 🌿 Alegra AI • Evolução Telemedicina (Padrão CFP)
-*Consulta Online em Alta Resolução • ${new Date().toLocaleDateString('pt-BR')} às ${timestamp}*
-*Paciente: ${currentPatient.name}*
-
----
-
-#### 1. 🎯 Queixa Principal & Demanda
-${sessionNotes.split('\n')[0] || 'Demanda trazida de ansiedade antecipatória e sobrecarga.'}
-
-#### 2. 🧠 Exame do Estado Mental
-- Orientação: Alopsiquicamente e autopsiquicamente lúcido e orientado.
-- Afeto: Congruente, com sinais de inquietação psicomotora.
-- Linguagem: Preservada, ritmo levemente taquipsíquico.
-
-#### 3. 🛠️ Intervenções Psicoterapêuticas
-- Aplicação de técnicas de reestruturação cognitiva.
-- Psicoeducação sobre o ciclo do pânico e mecanismos de enfrentamento adaptativo.
-
-#### 4. 📌 Conduta e Encaminhamentos
-- Manter acompanhamento semanal via telemedicina Psicool.
-- Tarefa entre sessões: diário de pensamentos automáticos.`
-          : `### 🧠 Alegra AI • Parecer Psiquiátrico Telemedicina (CRM)
-*Consulta Médica Online • ${new Date().toLocaleDateString('pt-BR')} às ${timestamp}*
-*Paciente: ${currentPatient.name}*
-
----
-
-#### 1. 📋 Avaliação Psicopatológica
-${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta farmacológica.'}
-
-#### 2. 🔍 Hipóteses Diagnósticas
-- CID-11: ${currentPatient.cid11 || '6B00 (Transtorno de Ansiedade Generalizada)'}
-- DSM-5-TR: ${currentPatient.dsm5 || '300.02 (F41.1)'}
-
-#### 3. 💊 Manejo Psicofarmacológico
-- Manter farmacoterapia atual com supervisão de adesão.
-- Recomenda-se aferição de pressão arterial e retorno em 30 dias.`
-      );
-      setSideTab('alegra_live');
+      if (data.text) {
+        setGeneratedEvolution(data.text);
+      }
+    } catch (err) {
+      console.error(err);
+      setGeneratedEvolution('Erro ao processar com a Alegra AI. Verifique a conexão com a API.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleSaveEvolution = () => {
-    if (!generatedEvolution) return;
+  const handleSaveToRecord = () => {
+    if (!currentPatient || !generatedEvolution) return;
 
-    const newEvolution: ClinicalEvolution = {
-      id: `evo-tele-${Date.now()}`,
+    const evolutionObj: ClinicalEvolution = {
+      id: `evo-${Date.now()}`,
       date: new Date().toLocaleDateString('pt-BR'),
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       profile,
-      title: profile === 'psicologo'
-        ? `Evolução Telemedicina CFP • ${currentPatient.name}`
-        : `Consulta Psiquiátrica Online CRM • ${currentPatient.name}`,
-      professionalName: profile === 'psicologo' ? 'Dra. Beatriz Albuquerque' : 'Dr. Rodrigo Vasconcelos',
-      councilId: profile === 'psicologo' ? 'CRP 06/148.920' : 'CRM 152.480-SP',
+      title: 'Atendimento via Telemedicina HD (E2EE)',
       content: generatedEvolution,
+      professionalName: profile === 'psicologo' ? 'Psicólogo Clínico' : 'Médico Psiquiatra',
+      councilId: profile === 'psicologo' ? 'CRP' : 'CRM',
+      sessionModality: 'telemedicina',
     };
 
-    onSaveEvolutionToPatient(currentPatient.id, newEvolution);
+    onSaveEvolutionToPatient(currentPatient.id, evolutionObj);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3500);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   const handleCopyEvolution = () => {
@@ -225,31 +197,27 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4">
       
-      {/* Top Telemedicine Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#120b24] border border-[#2a1b4e] mb-3 shadow-lg">
+      {/* Top Clinical Video Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4 mb-3 rounded-2xl bg-[#120b24] border border-[#2a1b4e] shadow-lg">
         
-        {/* Patient and Security Status */}
+        {/* Call Security & Status */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-tr from-[#bf5af2] to-[#ff007f] text-white shadow-[0_0_12px_rgba(255,0,127,0.4)]">
-              <Video className="w-5 h-5" />
+          <div className="p-2.5 rounded-xl bg-[#0b0616] border border-emerald-500/40 text-emerald-400">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-extrabold text-white">
+                Telemedicina HD Criptografada (E2EE)
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800">
+                {inCall ? 'Ao Vivo' : 'Chamada Encerrada'}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-extrabold text-white">
-                  Telemedicina Psicool HD
-                </h2>
-                <span className="flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full font-mono font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  AO VIVO
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-purple-300/80">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#bf5af2]" />
-                <span>Criptografia E2EE (LGPD / CFP / CFM)</span>
-                <span className="text-slate-500">•</span>
-                <span className="text-emerald-400 font-mono">1080p 60fps • 18ms</span>
-              </div>
+            <div className="flex items-center gap-2 text-xs text-purple-300/70">
+              <span>CFP Res. 04/2020 & CFM 2.314/2022</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-emerald-400 font-mono">1080p 60fps • 18ms</span>
             </div>
           </div>
         </div>
@@ -267,11 +235,17 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
               onChange={(e) => setSelectedPatientId(e.target.value)}
               className="bg-transparent text-white font-bold focus:outline-none cursor-pointer text-xs"
             >
-              {patients.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#120b24] text-white">
-                  {p.name} ({p.age} anos)
+              {patients.length > 0 ? (
+                patients.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#120b24] text-white">
+                    {p.name} ({p.age} anos)
+                  </option>
+                ))
+              ) : (
+                <option value="" className="bg-[#120b24] text-purple-300">
+                  Sala de Espera Virtual
                 </option>
-              ))}
+              )}
             </select>
           </div>
 
@@ -301,36 +275,51 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
         </div>
       </div>
 
-      {/* Subcategoria: Modo Split-Screen (Tela Dividida) */}
+      {/* Split-Screen Grid Layout */}
       <div className={`flex-1 grid gap-3 overflow-hidden ${splitScreenMode ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
         
-        {/* LADO ESQUERDO: Janela de Streaming de Vídeo de Alta Resolução com o Paciente */}
+        {/* LEFT COLUMN: Video Stream Window */}
         <div className={`flex flex-col rounded-2xl bg-[#0b0616] border border-[#2a1b4e] overflow-hidden shadow-2xl relative ${
           splitScreenMode ? 'lg:col-span-7' : 'w-full'
         }`}>
           
-          {/* Main Video Viewport (Patient Stream) */}
+          {/* Main Video Viewport */}
           <div className="relative flex-1 bg-gradient-to-b from-[#120b24] to-[#0b0616] flex items-center justify-center overflow-hidden min-h-[320px]">
             
             {inCall ? (
-              <div className="w-full h-full relative flex items-center justify-center">
-                {/* Simulated Patient High-Resolution Video Feed */}
-                <img
-                  src={currentPatient.photoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1000&auto=format&fit=crop&q=80'}
-                  alt={currentPatient.name}
-                  className="w-full h-full object-cover brightness-95 contrast-105"
-                />
+              <div className="w-full h-full relative flex items-center justify-center bg-[#0d0718]">
+                {currentPatient?.photoUrl ? (
+                  <img
+                    src={currentPatient.photoUrl}
+                    alt={currentPatient.name}
+                    className="w-full h-full object-cover brightness-95 contrast-105"
+                  />
+                ) : (
+                  <div className="text-center p-8 space-y-3">
+                    <div className="w-24 h-24 rounded-full bg-[#1c1236] border-2 border-[#bf5af2]/40 mx-auto flex items-center justify-center shadow-lg">
+                      <User className="w-12 h-12 text-[#bf5af2]" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        {currentPatient?.name || 'Aguardando Paciente'}
+                      </h3>
+                      <p className="text-xs text-purple-300/70">
+                        {currentPatient ? 'Conectado à Sala Criptografada' : 'Envie o link permanente ao paciente para iniciar a consulta'}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-                {/* Subtle Breathing / Audio Waves Overlay on Patient */}
+                {/* Patient overlay */}
                 <div className="absolute top-4 left-4 flex items-center gap-2 bg-[#0b0616]/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#2a1b4e]">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-bold text-white">{currentPatient.name}</span>
+                  <span className="text-xs font-bold text-white">{currentPatient?.name || 'Paciente'}</span>
                   <span className="text-[10px] text-purple-300/70">(Paciente)</span>
                 </div>
 
-                {/* Patient Audio Activity Indicator */}
+                {/* Audio Activity */}
                 <div className="absolute top-4 right-4 flex items-center gap-1 bg-[#0b0616]/80 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-[#2a1b4e]">
-                  <Activity className="w-3.5 h-3.5 text-emerald-400 animate-bounce" />
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
                   <div className="flex gap-0.5 items-end h-3">
                     <span className="w-0.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                     <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.1s]" />
@@ -338,7 +327,7 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
                   </div>
                 </div>
 
-                {/* PiP (Picture-in-Picture): Professional / Doctor Camera Feed */}
+                {/* PiP (Picture-in-Picture): Professional Camera */}
                 <div className="absolute bottom-4 right-4 w-32 sm:w-44 aspect-video rounded-xl overflow-hidden border-2 border-[#bf5af2] shadow-[0_0_20px_rgba(191,90,242,0.4)] bg-[#120b24] z-20">
                   {cameraEnabled ? (
                     <video
@@ -349,351 +338,244 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
                       className="w-full h-full object-cover scale-x-[-1]"
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-purple-300/70 p-2 text-center bg-[#180e2e]">
-                      <VideoOff className="w-6 h-6 text-[#ff007f] mb-1" />
-                      <span className="text-[10px]">Câmera desativada</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0616] text-purple-400/60 p-2 text-center">
+                      <VideoOff className="w-5 h-5 mb-1 text-[#ff007f]" />
+                      <span className="text-[10px]">Câmera Desativada</span>
                     </div>
                   )}
-                  <div className="absolute bottom-1 left-1.5 bg-[#0b0616]/80 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1">
-                    <span>Você</span>
-                    <span className="text-purple-400">({profile === 'psicologo' ? 'CRP' : 'CRM'})</span>
+                  <div className="absolute bottom-1 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">
+                    Você (Profissional)
                   </div>
-                </div>
-
-                {/* Professional Audio Indicator */}
-                <div className="absolute bottom-4 left-4 bg-[#0b0616]/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#2a1b4e] text-xs flex items-center gap-2">
-                  <div className={`p-1 rounded-full ${micEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                    {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-                  </div>
-                  <span className="text-[11px] text-slate-200">
-                    {micEnabled ? 'Microfone ativo' : 'Microfone mudo'}
-                  </span>
                 </div>
 
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400">
-                <div className="w-16 h-16 rounded-2xl bg-[#120b24] border border-[#2a1b4e] flex items-center justify-center mb-3">
-                  <PhoneOff className="w-8 h-8 text-[#ff007f]" />
+              <div className="text-center p-8 space-y-3">
+                <div className="w-16 h-16 rounded-full bg-pink-950/60 border border-pink-500/40 mx-auto flex items-center justify-center text-[#ff007f]">
+                  <PhoneOff className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-1">Consulta Encerrada</h3>
-                <p className="text-xs text-purple-300/70 max-w-sm mb-4">
-                  A chamada foi finalizada. As anotações clínicas foram preservadas no bloco ao lado para geração do prontuário.
+                <h3 className="text-lg font-bold text-white">Consulta Encerrada</h3>
+                <p className="text-xs text-purple-300/70 max-w-sm">
+                  A gravação da sessão e as anotações clínicas foram salvas com segurança no prontuário.
                 </p>
                 <button
-                  onClick={() => {
-                    setInCall(true);
-                    setCallSeconds(0);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-lg"
+                  onClick={() => setInCall(true)}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md hover:brightness-110"
                 >
-                  Reconectar Paciente
+                  Reconectar Chamada
                 </button>
               </div>
             )}
 
           </div>
 
-          {/* Video Controls Toolbar */}
-          <div className="p-3 bg-[#120b24] border-t border-[#2a1b4e] flex items-center justify-between gap-2 flex-wrap">
-            
-            {/* Left Controls: Mic, Camera, ScreenShare */}
+          {/* Bottom Call Controls Toolbar */}
+          <div className="p-3 bg-[#120b24] border-t border-[#2a1b4e] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
-                id="telemed-mic-btn"
-                onClick={() => setMicEnabled(!micEnabled)}
-                className={`p-2.5 rounded-xl border transition-all ${
-                  micEnabled 
-                    ? 'bg-[#180e2e] text-purple-200 border-[#2a1b4e] hover:border-[#bf5af2]' 
-                    : 'bg-rose-950/80 text-rose-400 border-rose-800 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                onClick={toggleMic}
+                className={`p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  micEnabled
+                    ? 'bg-[#0b0616] text-purple-200 hover:text-white border border-[#2a1b4e]'
+                    : 'bg-pink-950 text-[#ff007f] border border-pink-700 shadow-[0_0_10px_rgba(255,0,127,0.3)]'
                 }`}
-                title={micEnabled ? 'Silenciar Microfone' : 'Ativar Microfone'}
+                title={micEnabled ? 'Desativar Microfone' : 'Ativar Microfone'}
               >
-                {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                {micEnabled ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4" />}
+                <span className="hidden sm:inline">{micEnabled ? 'Microfone On' : 'Mutado'}</span>
               </button>
 
               <button
-                id="telemed-camera-btn"
-                onClick={() => setCameraEnabled(!cameraEnabled)}
-                className={`p-2.5 rounded-xl border transition-all ${
-                  cameraEnabled 
-                    ? 'bg-[#180e2e] text-purple-200 border-[#2a1b4e] hover:border-[#bf5af2]' 
-                    : 'bg-rose-950/80 text-rose-400 border-rose-800 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                onClick={toggleCamera}
+                className={`p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  cameraEnabled
+                    ? 'bg-[#0b0616] text-purple-200 hover:text-white border border-[#2a1b4e]'
+                    : 'bg-pink-950 text-[#ff007f] border border-pink-700 shadow-[0_0_10px_rgba(255,0,127,0.3)]'
                 }`}
                 title={cameraEnabled ? 'Desligar Câmera' : 'Ligar Câmera'}
               >
-                {cameraEnabled ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                {cameraEnabled ? <Video className="w-4 h-4 text-[#bf5af2]" /> : <VideoOff className="w-4 h-4" />}
+                <span className="hidden sm:inline">{cameraEnabled ? 'Câmera On' : 'Câmera Off'}</span>
               </button>
 
               <button
-                id="telemed-screenshare-btn"
-                onClick={() => setIsScreenSharing(!isScreenSharing)}
-                className={`p-2.5 rounded-xl border transition-all ${
-                  isScreenSharing 
-                    ? 'bg-[#ff007f] text-white border-[#ff007f] shadow-[0_0_12px_rgba(255,0,127,0.4)]' 
-                    : 'bg-[#180e2e] text-purple-200 border-[#2a1b4e] hover:border-[#bf5af2]'
+                onClick={toggleScreenShare}
+                className={`p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  isScreenSharing
+                    ? 'bg-[#bf5af2] text-white shadow-md'
+                    : 'bg-[#0b0616] text-purple-200 hover:text-white border border-[#2a1b4e]'
                 }`}
-                title="Compartilhar Tela para psicoeducação / laudos"
+                title="Compartilhar Tela com o Paciente"
               >
                 <Share2 className="w-4 h-4" />
+                <span className="hidden md:inline">Compartilhar</span>
               </button>
             </div>
 
-            {/* Center: Consultation Status Banner */}
-            <div className="hidden sm:flex items-center gap-2 text-xs text-purple-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Sessão 50 min em curso</span>
-            </div>
-
-            {/* Right: End Call Action */}
-            <div className="flex items-center gap-2">
-              <button
-                id="telemed-end-call-btn"
-                onClick={() => setInCall(!inCall)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                  inCall
-                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]'
-                }`}
-              >
-                <PhoneOff className="w-4 h-4" />
-                <span>{inCall ? 'Encerrar' : 'Reabrir'}</span>
-              </button>
-            </div>
-
+            {/* End Call Button */}
+            <button
+              id="end-telemed-call-btn"
+              onClick={toggleCall}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                inCall
+                  ? 'bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]'
+                  : 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-md'
+              }`}
+            >
+              <PhoneOff className="w-4 h-4" />
+              <span>{inCall ? 'Encerrar Consulta' : 'Iniciar Chamada'}</span>
+            </button>
           </div>
 
         </div>
 
-        {/* LADO DIREITO: Bloco de Anotações Simultâneo Integrado à Alegra AI (O Superador da Sintropia) */}
+        {/* RIGHT COLUMN: Real-time Notes & Alegra Evolution Engine */}
         {splitScreenMode && (
-          <div className="lg:col-span-5 flex flex-col rounded-2xl bg-[#120b24] border border-[#bf5af2]/40 shadow-2xl overflow-hidden">
+          <div className="lg:col-span-5 flex flex-col rounded-2xl bg-[#120b24] border border-[#2a1b4e] overflow-hidden shadow-2xl">
             
-            {/* Header with Navigation Tabs on Side Panel */}
-            <div className="p-3 border-b border-[#2a1b4e] flex items-center justify-between gap-2 bg-[#180e2e]">
+            {/* Tabs Selector */}
+            <div className="flex items-center justify-between border-b border-[#2a1b4e] bg-[#0b0616] p-1.5">
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setSideTab('anotacoes')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     sideTab === 'anotacoes'
-                      ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-[0_0_10px_rgba(255,0,127,0.4)]'
-                      : 'text-purple-300/70 hover:text-white hover:bg-[#23143f]'
+                      ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-md'
+                      : 'text-purple-300/70 hover:text-white'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Anotações ao Vivo</span>
+                  Anotações da Sessão
                 </button>
-
-                <button
-                  onClick={() => setSideTab('alegra_live')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    sideTab === 'alegra_live'
-                      ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-[0_0_10px_rgba(255,0,127,0.4)]'
-                      : 'text-purple-300/70 hover:text-white hover:bg-[#23143f]'
-                  }`}
-                >
-                  <Brain className="w-3.5 h-3.5" />
-                  <span>Alegra AI Prontuário</span>
-                  {generatedEvolution && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  )}
-                </button>
-
                 <button
                   onClick={() => setSideTab('prontuario')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     sideTab === 'prontuario'
-                      ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-[0_0_10px_rgba(255,0,127,0.4)]'
-                      : 'text-purple-300/70 hover:text-white hover:bg-[#23143f]'
+                      ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-md'
+                      : 'text-purple-300/70 hover:text-white'
                   }`}
                 >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Histórico</span>
+                  Histórico Clínico
                 </button>
+              </div>
+
+              <div className="flex items-center gap-1 px-2 text-[10px] text-purple-400 font-mono">
+                <span>E2EE Prontuário</span>
               </div>
             </div>
 
-            {/* TAB 1: Bloco de Anotações Simultâneo */}
+            {/* TAB 1: Live Notes & AI Evolution */}
             {sideTab === 'anotacoes' && (
-              <div className="flex-1 flex flex-col p-3.5 overflow-hidden">
-                <div className="flex items-center justify-between mb-2 text-xs">
-                  <span className="font-bold text-purple-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#bf5af2]" />
-                    Registro Clínico em Tempo Real
-                  </span>
-                  <span className="text-[11px] text-purple-400/60">
-                    Não fecha o streaming de vídeo
-                  </span>
+              <div className="flex-1 flex flex-col p-4 space-y-3 overflow-y-auto">
+                
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-[#bf5af2]" />
+                      <span>Notas Clínicas em Tempo Real</span>
+                    </label>
+                    <span className="text-[10px] text-purple-300/60 font-mono">
+                      {sessionNotes.length} caracteres
+                    </span>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={sessionNotes}
+                    onChange={(e) => setSessionNotes(e.target.value)}
+                    placeholder="Digite anotações rápidas durante o atendimento (ex: queixas, intervenções, estado mental, medicações)..."
+                    className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-xl p-3 text-xs text-white placeholder-purple-400/40 focus:outline-none focus:border-[#bf5af2] resize-none"
+                  />
                 </div>
 
-                <textarea
-                  id="telemed-notes-textarea"
-                  value={sessionNotes}
-                  onChange={(e) => setSessionNotes(e.target.value)}
-                  placeholder="Digite livremente os pontos trazidos pelo paciente durante a consulta online... Ao clicar em 'Gerar Prontuário com Alegra AI', suas notas serão transformadas na evolução oficial."
-                  className="flex-1 w-full bg-[#0b0616] border border-[#2a1b4e] focus:border-[#bf5af2] rounded-xl p-3 text-xs sm:text-sm text-slate-100 placeholder-purple-400/40 focus:outline-none resize-none leading-relaxed"
-                />
-
-                {/* Quick Shortcuts for Clinical Notes */}
-                <div className="py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                  <span className="text-[10px] uppercase font-bold text-purple-400/70 shrink-0">
-                    Inserir:
+                {/* AI Transformation Button */}
+                <button
+                  id="generate-evolution-ai-btn"
+                  onClick={handleGenerateEvolution}
+                  disabled={isGenerating || !sessionNotes.trim()}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    {isGenerating 
+                      ? 'Alegra AI Estruturando Evolução Técnica...' 
+                      : profile === 'psicologo' 
+                        ? 'Gerar Evolução CFP (Res. 01/2009)' 
+                        : 'Gerar Evolução Médica CFM (SOAP)'}
                   </span>
-                  <button
-                    onClick={() => setSessionNotes((prev) => `${prev}\n• Queixa: `)}
-                    className="shrink-0 px-2 py-0.5 rounded-lg bg-[#1c1236] border border-[#2a1b4e] text-[11px] text-purple-300 hover:text-white"
-                  >
-                    + Queixa
-                  </button>
-                  <button
-                    onClick={() => setSessionNotes((prev) => `${prev}\n• Estado Mental: `)}
-                    className="shrink-0 px-2 py-0.5 rounded-lg bg-[#1c1236] border border-[#2a1b4e] text-[11px] text-purple-300 hover:text-white"
-                  >
-                    + Estado Mental
-                  </button>
-                  <button
-                    onClick={() => setSessionNotes((prev) => `${prev}\n• Intervenção: `)}
-                    className="shrink-0 px-2 py-0.5 rounded-lg bg-[#1c1236] border border-[#2a1b4e] text-[11px] text-purple-300 hover:text-white"
-                  >
-                    + Intervenção
-                  </button>
-                  <button
-                    onClick={() => setSessionNotes((prev) => `${prev}\n• Conduta: `)}
-                    className="shrink-0 px-2 py-0.5 rounded-lg bg-[#1c1236] border border-[#2a1b4e] text-[11px] text-purple-300 hover:text-white"
-                  >
-                    + Conduta
-                  </button>
-                </div>
+                </button>
 
-                {/* CTA: Gerar Prontuário Simultâneo com Alegra AI */}
-                <div className="pt-2 border-t border-[#2a1b4e]">
-                  <button
-                    id="telemed-generate-evolution-btn"
-                    onClick={handleGenerateEvolution}
-                    disabled={isGenerating || !sessionNotes.trim()}
-                    className="w-full py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white font-bold text-xs sm:text-sm shadow-[0_0_20px_rgba(255,0,127,0.4)] hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Brain className="w-4 h-4 animate-spin" />
-                        <span>Alegra AI Gerando Prontuário...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Gerar Prontuário com Alegra AI</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+                {/* Generated Evolution Container */}
+                {generatedEvolution && (
+                  <div className="flex-1 rounded-xl bg-[#0b0616] border border-[#bf5af2]/50 p-3.5 space-y-3 shadow-inner flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-purple-300">
+                        <span className="flex items-center gap-1 text-[#bf5af2]">
+                          <Brain className="w-3.5 h-3.5" />
+                          <span>Evolução Gerada por Inteligência Clínica</span>
+                        </span>
+                        <span className="text-emerald-400 font-mono">Conforme {profile === 'psicologo' ? 'CFP 01/2009' : 'CFM SOAP'}</span>
+                      </div>
+                      
+                      <div className="text-xs text-purple-100/90 leading-relaxed font-sans max-h-48 overflow-y-auto pr-1">
+                        <div className="markdown-body">
+                          <ReactMarkdown>{generatedEvolution}</ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
 
-            {/* TAB 2: Resultado Estruturado da Alegra AI */}
-            {sideTab === 'alegra_live' && (
-              <div className="flex-1 flex flex-col p-3.5 overflow-hidden">
-                <div className="flex items-center justify-between mb-2 text-xs">
-                  <span className="font-bold text-white flex items-center gap-1.5">
-                    <Brain className="w-4 h-4 text-[#bf5af2]" />
-                    Evolução Clínica Gerada pela Alegra AI
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {generatedEvolution && (
+                    <div className="pt-2 border-t border-[#2a1b4e] flex items-center justify-between gap-2">
                       <button
                         onClick={handleCopyEvolution}
-                        className="text-xs text-purple-300 hover:text-white flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg bg-[#1a0f35] hover:bg-[#25154d] text-purple-200 text-xs font-semibold flex items-center gap-1.5 transition-all"
                       >
                         {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copied ? 'Copiado' : 'Copiar'}</span>
                       </button>
-                    )}
-                  </div>
-                </div>
 
-                {generatedEvolution ? (
-                  <div className="flex-1 overflow-y-auto p-3 rounded-xl bg-[#0b0616] border border-[#2a1b4e] text-xs text-slate-100 leading-relaxed markdown-content prose prose-invert max-w-none">
-                    <ReactMarkdown>{generatedEvolution}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-purple-300/60 border border-dashed border-[#2a1b4e] rounded-xl">
-                    <Brain className="w-10 h-10 text-[#bf5af2]/40 mb-2" />
-                    <p className="text-xs mb-3">
-                      Nenhuma evolução gerada ainda para esta chamada. Faça anotações na aba "Anotações ao Vivo" e clique em "Gerar Prontuário".
-                    </p>
-                    <button
-                      onClick={() => setSideTab('anotacoes')}
-                      className="text-xs text-[#ff007f] font-bold underline"
-                    >
-                      Ir para Anotações da Consulta
-                    </button>
+                      <button
+                        onClick={handleSaveToRecord}
+                        className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>{saveSuccess ? 'Salvo no Prontuário!' : 'Assinar & Salvar'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Save to Patient Electronic Health Record */}
-                {generatedEvolution && (
-                  <div className="pt-3 mt-2 border-t border-[#2a1b4e] flex items-center gap-2">
-                    <button
-                      id="telemed-save-record-btn"
-                      onClick={handleSaveEvolution}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                        saveSuccess 
-                          ? 'bg-emerald-600 text-white' 
-                          : 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white shadow-[0_0_15px_rgba(255,0,127,0.4)]'
-                      }`}
-                    >
-                      {saveSuccess ? (
-                        <>
-                          <Check className="w-4 h-4" />
-                          <span>Salvo no Prontuário de {currentPatient.name}!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" />
-                          <span>Salvar no Prontuário Oficial</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* TAB 3: Histórico Prévio do Paciente */}
+            {/* TAB 2: Patient Record Quick Peek */}
             {sideTab === 'prontuario' && (
-              <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
-                <div className="p-3 rounded-xl bg-[#0b0616] border border-[#2a1b4e]">
-                  <div className="text-xs font-bold text-white mb-1">
-                    {currentPatient.name} • {currentPatient.age} anos
-                  </div>
-                  <div className="text-[11px] text-purple-300 mb-1">
-                    <span className="font-semibold text-slate-400">Hipótese Diagnóstica:</span> {currentPatient.diagnosisHypothesis}
-                  </div>
-                  {currentPatient.medications && currentPatient.medications.length > 0 && (
-                    <div className="text-[11px] text-slate-300">
-                      <span className="font-semibold text-slate-400">Psicofármacos:</span> {currentPatient.medications.join(', ')}
+              <div className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
+                {currentPatient ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-[#0b0616] rounded-xl border border-[#2a1b4e] space-y-1">
+                      <div className="text-purple-400 font-bold uppercase text-[10px]">Diagnóstico & CID-11</div>
+                      <div className="text-white font-semibold">{currentPatient.diagnosisHypothesis}</div>
                     </div>
-                  )}
-                </div>
 
-                <div className="text-xs font-bold text-purple-200">
-                  Evoluções de Sessões Anteriores:
-                </div>
-
-                {currentPatient.evolutions.length > 0 ? (
-                  currentPatient.evolutions.map((evo) => (
-                    <div key={evo.id} className="p-3 rounded-xl bg-[#0b0616] border border-[#2a1b4e] text-xs">
-                      <div className="flex items-center justify-between text-[11px] text-purple-400 mb-1">
-                        <span className="font-bold text-white">{evo.title}</span>
-                        <span>{evo.date}</span>
+                    <div className="p-3 bg-[#0b0616] rounded-xl border border-[#2a1b4e] space-y-1">
+                      <div className="text-purple-400 font-bold uppercase text-[10px]">Medicações em Uso</div>
+                      <div className="text-white">
+                        {currentPatient.medications && currentPatient.medications.length > 0 ? currentPatient.medications.join(', ') : 'Nenhuma medicação informada.'}
                       </div>
-                      <p className="text-slate-300 text-[11px] whitespace-pre-wrap">
-                        {evo.content}
-                      </p>
                     </div>
-                  ))
+
+                    <div className="p-3 bg-[#0b0616] rounded-xl border border-[#2a1b4e] space-y-1">
+                      <div className="text-purple-400 font-bold uppercase text-[10px]">Última Evolução Clínica Registrada</div>
+                      {currentPatient.evolutions && currentPatient.evolutions.length > 0 ? (
+                        <p className="text-purple-200/80 leading-relaxed text-[11px]">
+                          {currentPatient.evolutions[0].content || currentPatient.evolutions[0].title}
+                        </p>
+                      ) : (
+                        <p className="text-purple-400/50 text-[11px]">Nenhuma evolução anterior.</p>
+                      )}
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-center p-4 text-xs text-purple-300/50">
-                    Primeira consulta registrada no Psicool.
+                  <div className="text-center py-8 text-purple-300/60">
+                    Nenhum paciente selecionado para visualização de prontuário.
                   </div>
                 )}
               </div>
@@ -703,6 +585,7 @@ ${sessionNotes.split('\n')[0] || 'Retorno clínico para avaliação de resposta 
         )}
 
       </div>
+
     </div>
   );
 };
