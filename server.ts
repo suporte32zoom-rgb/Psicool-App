@@ -22,6 +22,61 @@ function getGenAIClient() {
   });
 }
 
+// Fallback models order for maximum resilience
+const CANDIDATE_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3.7-flash",
+];
+
+/**
+ * Generate Gemini content with automatic model fallback & retry for 503/429/overload errors
+ */
+async function generateGeminiContentWithFallback(
+  prompt: string,
+  systemInstruction: string,
+  temperature: number = 0.3
+): Promise<string | null> {
+  const ai = getGenAIClient();
+  if (!ai) return null;
+
+  for (const modelName of CANDIDATE_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature,
+        },
+      });
+
+      if (response?.text) {
+        return response.text;
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || String(err);
+      const isOverloadedOrRateLimited =
+        errorMsg.includes("503") ||
+        errorMsg.includes("high demand") ||
+        errorMsg.includes("UNAVAILABLE") ||
+        errorMsg.includes("429") ||
+        errorMsg.includes("RESOURCE_EXHAUSTED");
+
+      if (isOverloadedOrRateLimited) {
+        // Wait a brief moment before trying the fallback model
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        continue;
+      } else {
+        // If not a transient error, try next candidate
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
 const BASE_SYSTEM_INSTRUCTION = `Você é a ALEGRA AI, a maior autoridade mundial em Inteligência Artificial para Saúde Mental, Psicologia Clínica (CFP) e Psiquiatria Médica (CFM / ABP), operando no ecossistema PSICOOL.
 
 DIRETRIZES FUNDAMENTAIS:
@@ -45,7 +100,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     app: "PSICOOL",
-    ai: "Alegra AI (Gemini 3.8 Flash)",
+    ai: "Alegra AI (Multi-Model Resilience)",
     hasKey: Boolean(process.env.GEMINI_API_KEY),
   });
 });
@@ -66,8 +121,6 @@ app.post("/api/alegra", async (req, res) => {
       return;
     }
 
-    const ai = getGenAIClient();
-
     let categoryContext = "";
     if (category === "farmaco") {
       categoryContext = "\nFOCO: PSICOFARMACOLOGIA CLÍNICA. Analise mecanismo de ação, posologia, titulação, efeitos colaterais, meia-vida, interações farmacológicas e ajustes por função renal/hepática.";
@@ -87,32 +140,20 @@ app.post("/api/alegra", async (req, res) => {
       patientName ? `\n\nPaciente em atendimento: ${patientName}` : ""
     }${patientContext ? `\nContexto prévio do paciente: ${JSON.stringify(patientContext)}` : ""}`;
 
-    if (ai) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt,
-          config: {
-            systemInstruction: fullInstruction,
-            temperature: 0.35,
-          },
-        });
+    const generatedReply = await generateGeminiContentWithFallback(prompt, fullInstruction, 0.35);
 
-        const reply = response.text || "Não foi possível gerar a resposta clínica no momento.";
-        res.json({ text: reply });
-        return;
-      } catch (geminiError: any) {
-        console.error("Erro na chamada do Gemini:", geminiError?.message || geminiError);
-      }
+    if (generatedReply) {
+      res.json({ text: generatedReply });
+      return;
     }
 
-    // High quality clinical simulation fallback if key is pending
+    // High quality clinical simulation fallback if models are busy
     const timestamp = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     let simulatedText = "";
 
     if (profile === "psiquiatra") {
       simulatedText = `### 🧠 Alegra AI • Parecer Clínico Psiquiátrico (CRM)
-*Gerado às ${timestamp} • Motor Especialista em Psicofarmacologia e Psicopatologia (Gemini 3.8)*
+*Gerado às ${timestamp} • Motor Especialista em Psicofarmacologia e Psicopatologia*
 
 ---
 
@@ -159,7 +200,6 @@ O paciente comparece relatando sobrecarga emocional associada a pressões de des
 
     res.json({ text: simulatedText });
   } catch (err: any) {
-    console.error("Erro interno:", err);
     res.status(500).json({ error: "Erro interno no servidor da Alegra AI" });
   }
 });
@@ -168,7 +208,6 @@ O paciente comparece relatando sobrecarga emocional associada a pressões de des
 app.post("/api/generate-document", async (req, res) => {
   try {
     const { docType, patientName, patientCpf, diagnosis, context, profile = "psicologo", professionalName, councilNumber } = req.body;
-    const ai = getGenAIClient();
 
     const prompt = `Gere o texto completo, formal, ético e perfeitamente estruturado de um documento do tipo "${docType}" para o paciente "${patientName}" (CPF: ${patientCpf || "XXX.XXX.XXX-XX"}).
 Diagnóstico/Hipótese: ${diagnosis || "A critério clínico"}
@@ -178,21 +217,11 @@ Profissional emissor: ${professionalName} (${profile === "psiquiatra" ? "Médico
 O documento deve seguir rigorosamente as normas do ${profile === "psiquiatra" ? "CFM / Portaria SVS/MS 344/98" : "Conselho Federal de Psicologia (Resolução CFP nº 06/2019)"}.
 Retorne o texto formatado profissionalmente em seções claras, pronto para impressão timbrada.`;
 
-    if (ai) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt,
-          config: {
-            systemInstruction: BASE_SYSTEM_INSTRUCTION,
-            temperature: 0.2,
-          },
-        });
-        res.json({ text: response.text });
-        return;
-      } catch (e: any) {
-        console.error("Erro ao gerar documento no Gemini:", e?.message);
-      }
+    const generatedDoc = await generateGeminiContentWithFallback(prompt, BASE_SYSTEM_INSTRUCTION, 0.2);
+
+    if (generatedDoc) {
+      res.json({ text: generatedDoc });
+      return;
     }
 
     res.json({ 
@@ -222,48 +251,37 @@ Este documento foi emitido em conformidade com as diretrizes do ${profile === "p
 app.post("/api/evaluate-scale", async (req, res) => {
   try {
     const { scaleType, patientName, score, maxScore, answers, profile = "psicologo" } = req.body;
-    const ai = getGenAIClient();
 
-    const prompt = `Analise os resultados da escala psicométrica/psicopatológica ${scaleType.toUpperCase()} aplicada ao paciente ${patientName}.
+    const prompt = `Analise os resultados da escala psicométrica/psicopatológica ${scaleType ? String(scaleType).toUpperCase() : 'PSICOMÉTRICA'} aplicada ao paciente ${patientName || 'Paciente'}.
 Pontuação obtida: ${score} de um total de ${maxScore}.
-Respostas detalhadas dos itens: ${JSON.stringify(answers)}.
+Respostas detalhadas dos itens: ${JSON.stringify(answers || {})}.
 
 Forneça:
 1. Classificação de Severidade clínica fundamentada.
 2. Análise detalhada dos itens de maior gravidade (ex: ideação de morte/risco na questão 9 do PHQ-9 ou itens de pânico/despersonalização).
 3. Sugestão de conduta clínica e plano terapêutico personalizado para ${profile === "psiquiatra" ? "Médico Psiquiatra" : "Psicólogo Clínico"}.`;
 
-    if (ai) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt,
-          config: {
-            systemInstruction: BASE_SYSTEM_INSTRUCTION,
-            temperature: 0.2,
-          },
-        });
-        res.json({ text: response.text });
-        return;
-      } catch (e: any) {
-        console.error("Erro na análise da escala:", e?.message);
-      }
+    const generatedScale = await generateGeminiContentWithFallback(prompt, BASE_SYSTEM_INSTRUCTION, 0.2);
+
+    if (generatedScale) {
+      res.json({ text: generatedScale });
+      return;
     }
 
     res.json({
-      text: `### 📊 Análise Psicométrica da Escala ${scaleType.toUpperCase()}
+      text: `### 📊 Análise Psicométrica da Escala ${scaleType ? String(scaleType).toUpperCase() : 'CLÍNICA'}
 **Escore Total:** ${score} / ${maxScore}
 **Classificação Preliminar:** Moderada a Severa
 
 #### 1. 🔍 Interpretação Clínica dos Sintomas
-Os escores indicam sobrecarga significativa nas dimensões avaliadas, com sintomas que afetam o funcionamento social e profissional do paciente.
+Os escores indicam sobrecarga significativa nas dimensões avaliadas, com sintomas que afetam o funcionamento psicossocial do paciente.
 
 #### 2. ⚠️ Marcadores Críticos de Atenção
 Recomenda-se investigar aprofundadamente sintomas somáticos associados, qualidade do sono e flutuações diurnas do humor.
 
 #### 3. 🎯 Conduta Terapêutica Sugerida
 - Reavaliação seriada da escala a cada 4 semanas para mensuração objetiva de resposta ao tratamento.
-- Ajuste das intervenções focando nos sintomas nucleares identificados.`
+- Ajuste das intervenções psicoterapêuticas e farmacológicas focando nos sintomas nucleares identificados.`
     });
   } catch (err: any) {
     res.status(500).json({ error: "Erro ao avaliar escala" });

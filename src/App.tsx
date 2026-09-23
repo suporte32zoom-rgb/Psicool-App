@@ -292,9 +292,17 @@ export default function App() {
           <PatientsDirectory
             patients={patients}
             profile={profile}
+            appointments={appointments}
+            scaleAssessments={scaleAssessments}
+            documents={documents}
             onSelectPatientForChat={handleSelectPatientForChat}
             onStartTelemedicine={handleStartTelemedicine}
             onAddPatient={handleAddPatient}
+            onAddAppointment={handleAddAppointment}
+            onNavigateToTab={(tab, subAction) => handleSelectSubAction(tab, subAction)}
+            onUpdatePatient={(updatedPatient) => {
+              setPatients((prev) => prev.map((p) => p.id === updatedPatient.id ? updatedPatient : p));
+            }}
           />
         )}
 

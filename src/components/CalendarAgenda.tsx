@@ -149,14 +149,23 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
         setTimeout(() => setSyncFeedback(null), 4000);
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.message?.includes('popup-closed-by-user') ||
+        err?.message?.includes('cancelled-popup-request')
+      ) {
+        // Ignored gracefully
+        return;
+      }
       if (
         err?.code === 'auth/unauthorized-domain' ||
         err?.message?.includes('unauthorized-domain')
       ) {
         setShowDomainHelpModal(true);
       } else {
-        alert(`Falha na autenticação com o Google: ${err.message || 'Tente novamente.'}`);
+        setSyncFeedback(`Autenticação não concluída: ${err.message || 'Tente novamente.'}`);
+        setTimeout(() => setSyncFeedback(null), 5000);
       }
     } finally {
       setIsAuthenticating(false);
