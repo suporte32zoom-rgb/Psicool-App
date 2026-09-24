@@ -316,6 +316,8 @@ export default function App() {
           <CalendarAgenda
             appointments={appointments}
             patients={patients}
+            profile={profile}
+            professionalData={professionalData}
             onStartTelemedicine={handleStartTelemedicine}
             onAddAppointment={handleAddAppointment}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}

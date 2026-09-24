@@ -185,34 +185,6 @@ export const PlansAndPricing: React.FC<PlansAndPricingProps> = ({ onPlanSelected
         ))}
       </div>
 
-      {/* Comparison with Sintropia Banner */}
-      <div className="mt-12 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#120b24] via-[#1a0f35] to-[#120b24] border border-[#bf5af2]/40 shadow-2xl">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 text-center md:text-left">
-            <span className="text-xs font-bold text-[#ff007f] uppercase tracking-wider">
-              Por que o Psicool supera a Sintropia?
-            </span>
-            <h4 className="text-lg sm:text-xl font-bold text-white">
-              Telemedicina Integrada Nativamente ao Prontuário em Split-Screen
-            </h4>
-            <p className="text-xs sm:text-sm text-purple-300/70 max-w-xl">
-              Enquanto outras plataformas exigem que você use o Google Meet ou Zoom separadamente e copie anotações depois, o Psicool coloca o streaming de vídeo HD e o co-piloto Alegra AI lado a lado na mesma tela.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <div className="p-3 rounded-2xl bg-[#0b0616] border border-[#2a1b4e] text-center">
-              <div className="text-xs text-purple-400/70">Sintropia</div>
-              <div className="text-sm font-bold text-slate-400">Vídeo Externo</div>
-            </div>
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-[#bf5af2]/20 to-[#ff007f]/20 border border-[#bf5af2] text-center shadow-[0_0_15px_rgba(191,90,242,0.3)]">
-              <div className="text-xs text-[#ff007f] font-bold">Psicool</div>
-              <div className="text-sm font-extrabold text-white">Vídeo + IA Nativo</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Mercado Pago Checkout Pro Simulation Modal */}
       {selectedPlanForCheckout && (
         <div 

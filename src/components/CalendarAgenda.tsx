@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Activity,
   MessageSquare, 
+  MessageCircle,
   ChevronLeft, 
   ChevronRight, 
   Users,
@@ -29,9 +30,14 @@ import {
   Link2,
   Globe,
   Copy,
-  ShieldAlert
+  ShieldAlert,
+  Send,
+  Smartphone,
+  Info,
+  CheckSquare,
+  FileText
 } from 'lucide-react';
-import { Appointment, Patient } from '../types';
+import { Appointment, Patient, ProfessionalProfile, ProfessionalData } from '../types';
 import { 
   googleSignIn, 
   logout, 
@@ -46,6 +52,8 @@ import { User } from 'firebase/auth';
 interface CalendarAgendaProps {
   appointments: Appointment[];
   patients: Patient[];
+  profile?: ProfessionalProfile;
+  professionalData?: ProfessionalData;
   onStartTelemedicine: (patientId: string) => void;
   onAddAppointment: (appointment: Appointment) => void;
   onUpdateAppointmentStatus?: (appointmentId: string, newStatus: Appointment['status']) => void;
@@ -55,6 +63,18 @@ interface CalendarAgendaProps {
 export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
   appointments,
   patients,
+  profile = 'psicologo',
+  professionalData = {
+    name: 'Dra. Gabriela Alegra',
+    role: 'Psicólogo Clínico',
+    council: 'CRP',
+    councilNumber: '06/148.920',
+    email: 'gabriela.alegra@psicool.med.br',
+    phone: '(11) 98765-4321',
+    clinicName: 'Consultório Integrado PSICOOL Paulista',
+    clinicAddress: 'Av. Paulista, 1000 - Conj. 1204 - Bela Vista, São Paulo - SP',
+    pixKey: 'gabriela.alegra@psicool.med.br',
+  },
   onStartTelemedicine,
   onAddAppointment,
   onUpdateAppointmentStatus,
@@ -64,6 +84,22 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
   const [filterModality, setFilterModality] = useState<'todos' | 'telemedicina' | 'presencial'>('todos');
   const [filterStatus, setFilterStatus] = useState<'todos' | 'confirmado' | 'pendente' | 'cancelado'>('todos');
   const [showNewModal, setShowNewModal] = useState(false);
+
+  // WhatsApp Reminder State
+  const [whatsappModalApt, setWhatsappModalApt] = useState<Appointment | null>(null);
+  const [reminderTemplate, setReminderTemplate] = useState<'telemedicina' | 'presencial' | 'confirmacao' | 'personalizado'>('telemedicina');
+  const [customReminderText, setCustomReminderText] = useState('');
+  const [customPatientPhone, setCustomPatientPhone] = useState('');
+  const [copiedReminder, setCopiedReminder] = useState(false);
+  const [showBatchReminderModal, setShowBatchReminderModal] = useState(false);
+  const [sentReminders, setSentReminders] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('psicool_sent_whatsapp_reminders');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Google Calendar Integration State
   const [googleUser, setGoogleUser] = useState<User | null>(null);
@@ -90,6 +126,131 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
   const [status, setStatus] = useState<Appointment['status']>('confirmado');
   const [sessionValue, setSessionValue] = useState(280);
   const [syncToGoogleCalendarOnCreate, setSyncToGoogleCalendarOnCreate] = useState(true);
+
+  // Helper function to format phone number for WhatsApp wa.me link
+  const formatPhoneForWhatsApp = (rawPhone: string): string => {
+    const cleaned = rawPhone.replace(/\D/g, '');
+    if (!cleaned) return '';
+    // If length is 10 or 11 (standard BR DDD+number), add 55
+    if (cleaned.length === 10 || cleaned.length === 11) {
+      return `55${cleaned}`;
+    }
+    // If starts with 55 and has 12/13 digits, keep
+    if (cleaned.startsWith('55') && (cleaned.length === 12 || cleaned.length === 13)) {
+      return cleaned;
+    }
+    return cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
+  };
+
+  // Helper function to construct full secure patient telemedicine room URL
+  const getPatientRoomUrl = (apt: Appointment): string => {
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const cleanOrigin = origin + pathname;
+    const roomCode = (apt.id || apt.patientId || 'sala-psicool').toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const patientNameParam = encodeURIComponent(apt.patientName || 'Paciente');
+    return `${cleanOrigin}?sala=${roomCode}&paciente=${patientNameParam}`;
+  };
+
+  // Generate WhatsApp Message text according to template
+  const generateWhatsAppMessage = (apt: Appointment, template: 'telemedicina' | 'presencial' | 'confirmacao' | 'personalizado'): string => {
+    const isDoctor = profile === 'psiquiatra';
+    const profTitle = isDoctor ? 'Dr(a).' : 'Psicólogo(a)';
+    const roomUrl = getPatientRoomUrl(apt);
+    const dateFormatted = apt.date === 'Hoje' ? 'hoje' : apt.date === 'Amanhã' ? 'amanhã' : `no dia ${apt.date}`;
+
+    switch (template) {
+      case 'telemedicina':
+        return (
+          `*Lembrete de Consulta Online - PSICOOL* 🩺\n\n` +
+          `Olá, *${apt.patientName}*!\n\n` +
+          `Passando para lembrar da sua sessão de telemedicina agendada para *${dateFormatted} às ${apt.time}* com ${profTitle} *${professionalData.name}* (${professionalData.council}: ${professionalData.councilNumber}).\n\n` +
+          `🔗 *Link de Acesso Seguro da Sala Virtual:*\n${roomUrl}\n\n` +
+          `*Recomendações importantes:*\n` +
+          `• Conecte-se com 5 minutos de antecedência.\n` +
+          `• Utilize fones de ouvido e garanta um ambiente privativo e silencioso.\n` +
+          `• Verifique sua conexão com a internet.\n\n` +
+          `Por favor, responda com *CONFIRMAR* para confirmar sua presença, ou avise-nos com antecedência caso necessite reagendar. ✨`
+        );
+
+      case 'presencial':
+        return (
+          `*Lembrete de Consulta Presencial - PSICOOL* 🏢\n\n` +
+          `Olá, *${apt.patientName}*!\n\n` +
+          `Confirmamos sua consulta presencial agendada para *${dateFormatted} às ${apt.time}* com ${profTitle} *${professionalData.name}* (${professionalData.council}: ${professionalData.councilNumber}).\n\n` +
+          `📍 *Local:* ${professionalData.clinicName || 'Consultório PSICOOL'}\n` +
+          `Endereço: ${professionalData.clinicAddress || 'Av. Paulista, 1000 - Conj. 1204 - São Paulo/SP'}\n\n` +
+          `*Orientações:*\n` +
+          `• Recomendamos chegar com 10 minutos de antecedência na recepção.\n` +
+          `• Caso tenha exames anteriores ou receituários, traga-os consigo.\n\n` +
+          `Por favor, responda esta mensagem com *CONFIRMAR* para assegurar seu horário.`
+        );
+
+      case 'confirmacao':
+        return (
+          `*Confirmação de Horário - PSICOOL* 📅\n\n` +
+          `Olá, *${apt.patientName}*! Tudo bem?\n\n` +
+          `Lembramos da sua consulta agendada para *${dateFormatted} às ${apt.time}* com ${profTitle} *${professionalData.name}*.\n\n` +
+          `Podemos confirmar seu horário? Responda com *SIM* para confirmar ou nos avise caso precise remarcar. Obrigado!`
+        );
+
+      case 'personalizado':
+        return customReminderText || (
+          `Olá ${apt.patientName}, confirmamos sua consulta no PSICOOL para ${dateFormatted} às ${apt.time}. Link da sala: ${roomUrl}`
+        );
+
+      default:
+        return '';
+    }
+  };
+
+  // Open the Reminder Modal for a specific appointment
+  const handleOpenWhatsAppModal = (apt: Appointment) => {
+    setWhatsappModalApt(apt);
+    const defaultTemplate = apt.modality === 'telemedicina' ? 'telemedicina' : 'presencial';
+    setReminderTemplate(defaultTemplate);
+    setCustomPatientPhone(apt.patientPhone || '');
+    setCustomReminderText(generateWhatsAppMessage(apt, defaultTemplate));
+    setCopiedReminder(false);
+  };
+
+  // Dispatch WhatsApp Reminder
+  const handleDispatchWhatsApp = (apt: Appointment, customText?: string, phoneOverride?: string) => {
+    const phoneToUse = phoneOverride || customPatientPhone || apt.patientPhone;
+    const formattedPhone = formatPhoneForWhatsApp(phoneToUse);
+    const textToSend = customText || customReminderText || generateWhatsAppMessage(apt, reminderTemplate);
+
+    if (!formattedPhone) {
+      alert('Por favor, preencha o número de WhatsApp válido do paciente antes de enviar.');
+      return;
+    }
+
+    const encodedText = encodeURIComponent(textToSend);
+    const waUrl = `https://wa.me/${formattedPhone}?text=${encodedText}`;
+
+    // Mark as sent
+    const newSentState = {
+      ...sentReminders,
+      [apt.id]: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setSentReminders(newSentState);
+    try {
+      localStorage.setItem('psicool_sent_whatsapp_reminders', JSON.stringify(newSentState));
+    } catch {
+      // ignore
+    }
+
+    // Open WhatsApp
+    window.open(waUrl, '_blank');
+  };
+
+  // Copy Reminder Message to Clipboard
+  const handleCopyReminderMessage = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedReminder(true);
+    setTimeout(() => setCopiedReminder(false), 3000);
+  };
 
   // Initialize Auth state listener
   useEffect(() => {
@@ -453,6 +614,17 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Batch WhatsApp Reminders Button */}
+          <button
+            id="batch-whatsapp-reminders-btn"
+            onClick={() => setShowBatchReminderModal(true)}
+            className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-[0_0_15px_rgba(16,185,129,0.35)] flex items-center gap-2 transition-all active:scale-95"
+            title="Disparar Lembretes Automáticos via WhatsApp para os pacientes do dia"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Lembretes WhatsApp ({dateAppointments.length})</span>
+          </button>
+
           {googleUser && (
             <button
               onClick={handleSyncAllToGoogle}
@@ -858,15 +1030,37 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
 
                     {/* Bottom Actions */}
                     <div className="pt-3 border-t border-[#2a1b4e] flex items-center justify-between gap-2 flex-wrap">
-                      <a
-                        href={`https://wa.me/55${apt.patientPhone.replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(apt.patientName)},%20confirmamos%20sua%20consulta%20no%20Psicool%20às%20${apt.time}.`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#0b0616] hover:bg-[#1a0f35] border border-[#2a1b4e] text-xs text-emerald-400 transition-colors"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>Lembrete WhatsApp</span>
-                      </a>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Interactive WhatsApp Reminder Button */}
+                        <button
+                          type="button"
+                          id={`send-whatsapp-reminder-${apt.id}`}
+                          onClick={() => handleOpenWhatsAppModal(apt)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-950 to-[#0b0616] hover:from-emerald-900/80 hover:to-[#150a2b] border border-emerald-700/60 text-xs font-bold text-emerald-300 hover:text-white transition-all shadow-sm group/btn"
+                          title="Personalizar e Disparar Lembrete WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-400 group-hover/btn:scale-110 transition-transform" />
+                          <span>Lembrete WhatsApp</span>
+                        </button>
+
+                        {/* Quick 1-click Dispatch Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleDispatchWhatsApp(apt)}
+                          className="p-1.5 rounded-xl bg-[#0b0616] hover:bg-emerald-950 border border-[#2a1b4e] hover:border-emerald-700 text-emerald-400 text-xs transition-all"
+                          title="Disparar Imediatamente no WhatsApp"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Sent Badge */}
+                        {sentReminders[apt.id] && (
+                          <span className="text-[10px] text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-950/80 px-2 py-0.5 rounded-lg border border-emerald-800">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span>Enviado às {sentReminders[apt.id]}</span>
+                          </span>
+                        )}
+                      </div>
 
                       {isTelemed && !isCanceled && (
                         <button
@@ -1272,6 +1466,333 @@ export const CalendarAgenda: React.FC<CalendarAgendaProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* INDIVIDUAL WHATSAPP REMINDER MODAL */}
+      {whatsappModalApt && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-xl rounded-3xl bg-[#120b24] border border-emerald-500/80 p-5 sm:p-6 shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2a1b4e]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-emerald-950/80 border border-emerald-700 text-emerald-400">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <span>Lembrete de Consulta via WhatsApp</span>
+                  </h3>
+                  <p className="text-xs text-purple-300/80">
+                    Paciente: <strong className="text-white">{whatsappModalApt.patientName}</strong> • {whatsappModalApt.date} às {whatsappModalApt.time}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setWhatsappModalApt(null)}
+                className="p-2 rounded-xl bg-[#0b0616] text-purple-400 hover:text-white border border-[#2a1b4e] transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Patient Phone Number Verification */}
+            <div className="bg-[#0b0616] p-3 rounded-2xl border border-[#2a1b4e] space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-semibold text-purple-300 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Número de WhatsApp Cadastrado:</span>
+                </label>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Link formatado: +{formatPhoneForWhatsApp(customPatientPhone || whatsappModalApt.patientPhone)}
+                </span>
+              </div>
+              <input
+                type="text"
+                value={customPatientPhone}
+                onChange={(e) => setCustomPatientPhone(e.target.value)}
+                placeholder="(DDD) 99999-9999"
+                className="w-full bg-[#180e2e] border border-[#3c2273] rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
+              />
+            </div>
+
+            {/* Template Selector Tabs */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-purple-300">
+                Selecione o Modelo de Mensagem:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderTemplate('telemedicina');
+                    setCustomReminderText(generateWhatsAppMessage(whatsappModalApt, 'telemedicina'));
+                  }}
+                  className={`p-2 rounded-xl text-xs font-bold transition-all border text-center ${
+                    reminderTemplate === 'telemedicina'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500 shadow-md'
+                      : 'bg-[#0b0616] text-purple-300/70 border-[#2a1b4e] hover:text-white'
+                  }`}
+                >
+                  <Video className="w-3.5 h-3.5 mx-auto mb-1 text-[#ff007f]" />
+                  <span>Telemedicina HD</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderTemplate('presencial');
+                    setCustomReminderText(generateWhatsAppMessage(whatsappModalApt, 'presencial'));
+                  }}
+                  className={`p-2 rounded-xl text-xs font-bold transition-all border text-center ${
+                    reminderTemplate === 'presencial'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500 shadow-md'
+                      : 'bg-[#0b0616] text-purple-300/70 border-[#2a1b4e] hover:text-white'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5 mx-auto mb-1 text-purple-400" />
+                  <span>Presencial</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderTemplate('confirmacao');
+                    setCustomReminderText(generateWhatsAppMessage(whatsappModalApt, 'confirmacao'));
+                  }}
+                  className={`p-2 rounded-xl text-xs font-bold transition-all border text-center ${
+                    reminderTemplate === 'confirmacao'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500 shadow-md'
+                      : 'bg-[#0b0616] text-purple-300/70 border-[#2a1b4e] hover:text-white'
+                  }`}
+                >
+                  <Clock3 className="w-3.5 h-3.5 mx-auto mb-1 text-amber-400" />
+                  <span>Confirmação</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderTemplate('personalizado');
+                  }}
+                  className={`p-2 rounded-xl text-xs font-bold transition-all border text-center ${
+                    reminderTemplate === 'personalizado'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500 shadow-md'
+                      : 'bg-[#0b0616] text-purple-300/70 border-[#2a1b4e] hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 mx-auto mb-1 text-[#bf5af2]" />
+                  <span>Personalizado</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Message Preview & Editor */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-purple-300">
+                <span className="font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-[#bf5af2]" />
+                  <span>Pré-visualização do Texto (Editável):</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyReminderMessage(customReminderText || generateWhatsAppMessage(whatsappModalApt, reminderTemplate))}
+                  className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold"
+                >
+                  {copiedReminder ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedReminder ? 'Copiado!' : 'Copiar Texto'}</span>
+                </button>
+              </div>
+
+              <textarea
+                rows={7}
+                value={customReminderText || generateWhatsAppMessage(whatsappModalApt, reminderTemplate)}
+                onChange={(e) => {
+                  setCustomReminderText(e.target.value);
+                  setReminderTemplate('personalizado');
+                }}
+                className="w-full bg-[#0b0616] border border-[#2a1b4e] rounded-2xl p-3 text-xs text-slate-100 font-sans leading-relaxed focus:outline-none focus:border-emerald-500 transition-all resize-none selection:bg-emerald-600 selection:text-white"
+              />
+            </div>
+
+            {/* Room Link Quick Copy for Telemedicine */}
+            {whatsappModalApt.modality === 'telemedicina' && (
+              <div className="p-3 bg-[#0b0616] rounded-xl border border-[#2a1b4e] flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link2 className="w-3.5 h-3.5 text-[#bf5af2] shrink-0" />
+                  <span className="text-purple-300/80 shrink-0 font-medium">Link da Sala:</span>
+                  <span className="font-mono text-[#bf5af2] truncate text-[11px]">
+                    {getPatientRoomUrl(whatsappModalApt)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getPatientRoomUrl(whatsappModalApt));
+                    setCopiedReminder(true);
+                    setTimeout(() => setCopiedReminder(false), 2000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-[#1a0f35] hover:bg-[#26154c] text-purple-200 text-[11px] font-semibold shrink-0"
+                >
+                  Copiar Link
+                </button>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2a1b4e]">
+              <button
+                type="button"
+                onClick={() => setWhatsappModalApt(null)}
+                className="px-4 py-2.5 rounded-xl bg-[#1a0f35] hover:bg-[#25154d] text-purple-300 font-semibold text-xs transition-all"
+              >
+                Fechar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleDispatchWhatsApp(whatsappModalApt);
+                  setWhatsappModalApt(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-[0_0_15px_rgba(16,185,129,0.4)] flex items-center gap-2 transition-all active:scale-95"
+              >
+                <Send className="w-4 h-4" />
+                <span>Disparar no WhatsApp</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* BATCH WHATSAPP REMINDERS MODAL (Lembretes em Lote do Dia) */}
+      {showBatchReminderModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-2xl rounded-3xl bg-[#120b24] border border-emerald-500/80 p-5 sm:p-6 shadow-2xl relative space-y-4 max-h-[90vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2a1b4e]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-md">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <span>Central de Lembretes WhatsApp ({selectedDate})</span>
+                  </h3>
+                  <p className="text-xs text-purple-300/80">
+                    Dispare lembretes automáticos com 1 clique para os pacientes agendados.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBatchReminderModal(false)}
+                className="p-2 rounded-xl bg-[#0b0616] text-purple-400 hover:text-white border border-[#2a1b4e] transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* List of Consultations for Today */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {dateAppointments.length > 0 ? (
+                dateAppointments.map((apt) => {
+                  const isSent = !!sentReminders[apt.id];
+                  const isTelemed = apt.modality === 'telemedicina';
+
+                  return (
+                    <div
+                      key={apt.id}
+                      className={`p-4 rounded-2xl bg-[#0b0616] border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                        isSent ? 'border-emerald-800/80 bg-emerald-950/20' : 'border-[#2a1b4e] hover:border-purple-500/40'
+                      }`}
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-white">
+                            {apt.patientName}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1a0f35] text-purple-200 border border-[#3b216d]">
+                            {apt.time} ({apt.durationMinutes} min)
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isTelemed ? 'bg-pink-950 text-[#ff007f] border border-pink-800' : 'bg-purple-950 text-purple-300'
+                          }`}>
+                            {isTelemed ? 'Telemedicina HD' : 'Presencial'}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-purple-300/70 flex items-center gap-2 font-mono">
+                          <Smartphone className="w-3 h-3 text-emerald-400" />
+                          <span>{apt.patientPhone || 'Telefone não cadastrado'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                        {isSent ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-bold">
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Enviado ({sentReminders[apt.id]})</span>
+                          </div>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDispatchWhatsApp(apt);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95"
+                          title="Enviar lembrete via WhatsApp para este paciente"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{isSent ? 'Reenviar' : 'Enviar WhatsApp'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBatchReminderModal(false);
+                            handleOpenWhatsAppModal(apt);
+                          }}
+                          className="p-1.5 rounded-xl bg-[#180e2e] hover:bg-[#25154d] text-purple-300 text-xs border border-[#381f63]"
+                          title="Ver e Editar Mensagem"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-10 text-purple-300/60 space-y-2">
+                  <CalendarIcon className="w-8 h-8 mx-auto text-[#bf5af2]/40" />
+                  <p className="text-xs">Nenhuma consulta agendada para {selectedDate}.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-[#2a1b4e] flex items-center justify-between">
+              <span className="text-xs text-purple-300/70">
+                {dateAppointments.filter((a) => !!sentReminders[a.id]).length} de {dateAppointments.length} lembretes disparados.
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setShowBatchReminderModal(false)}
+                className="px-4 py-2 rounded-xl bg-[#1a0f35] hover:bg-[#25154d] text-purple-300 font-semibold text-xs"
+              >
+                Concluir
+              </button>
+            </div>
+
           </div>
         </div>
       )}
