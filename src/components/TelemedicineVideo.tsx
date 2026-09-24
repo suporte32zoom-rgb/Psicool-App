@@ -284,14 +284,16 @@ ${sessionNotes}`,
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4">
+    <div className="flex flex-col min-h-[calc(100vh-6rem)] max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4">
       
-      {/* Top Clinical Video Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4 mb-3 rounded-2xl bg-[#120b24] border border-[#2a1b4e] shadow-lg">
+      {/* Top Clinical Video Bar with Primary End Call Action */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4 mb-3 rounded-2xl bg-[#120b24] border border-[#2a1b4e] shadow-lg sticky top-16 sm:top-20 z-30 backdrop-blur-md">
         
         {/* Call Security & Status */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-[#0b0616] border border-emerald-500/40 text-emerald-400">
+          <div className={`p-2.5 rounded-xl border ${
+            inCall ? 'bg-[#0b0616] border-emerald-500/40 text-emerald-400' : 'bg-pink-950/40 border-pink-500/40 text-[#ff007f]'
+          }`}>
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
@@ -299,8 +301,12 @@ ${sessionNotes}`,
               <h2 className="text-sm font-extrabold text-white">
                 Telemedicina HD Criptografada (E2EE)
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800">
-                {inCall ? 'Ao Vivo' : 'Chamada Encerrada'}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                inCall 
+                  ? 'bg-emerald-950 text-emerald-400 border-emerald-800 animate-pulse' 
+                  : 'bg-pink-950 text-[#ff80bf] border-pink-800'
+              }`}>
+                {inCall ? '• Em Atendimento Ao Vivo' : 'Chamada Encerrada'}
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-purple-300/70">
@@ -311,7 +317,7 @@ ${sessionNotes}`,
           </div>
         </div>
 
-        {/* Patient Switcher, WhatsApp Share & Mode Toggle */}
+        {/* Patient Switcher, WhatsApp Share, Mode Toggle & PRIMARY END CALL BUTTON */}
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           
           {/* Select Active Patient */}
@@ -341,11 +347,11 @@ ${sessionNotes}`,
           {/* WhatsApp / Room Link Share Button */}
           <button
             onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.35)] transition-all animate-pulse"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.35)] transition-all"
             title="Gerar Link Válido e Enviar no WhatsApp do Paciente"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Enviar Link no WhatsApp</span>
+            <span className="hidden sm:inline">WhatsApp</span>
           </button>
 
           {/* Split-Screen Mode Toggle */}
@@ -360,8 +366,7 @@ ${sessionNotes}`,
             title="Alternar Modo Split-Screen (Tela Dividida: Vídeo + Anotações simultâneas)"
           >
             <Columns className="w-3.5 h-3.5 text-[#ff007f]" />
-            <span className="hidden sm:inline">Modo Split-Screen</span>
-            <span className="sm:hidden">Split</span>
+            <span className="hidden sm:inline">Split-Screen</span>
           </button>
 
           {/* Call Timer Display */}
@@ -370,6 +375,21 @@ ${sessionNotes}`,
             <span className="font-bold">{formatTimer(callSeconds)}</span>
             <span className="text-purple-400/60">/ 50:00</span>
           </div>
+
+          {/* TOP PRIMARY CALL ACTION BUTTON (ALWAYS VISIBLE AT TOP) */}
+          <button
+            id="top-end-telemed-call-btn"
+            onClick={toggleCall}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shrink-0 ${
+              inCall
+                ? 'bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-[0_0_15px_rgba(225,29,72,0.5)] border border-red-400/50'
+                : 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] hover:brightness-110 text-white shadow-md'
+            }`}
+            title={inCall ? 'Encerrar Consulta de Vídeo' : 'Iniciar Consulta de Vídeo'}
+          >
+            <PhoneOff className="w-4 h-4" />
+            <span>{inCall ? 'Encerrar Consulta' : 'Iniciar Chamada'}</span>
+          </button>
 
         </div>
       </div>
@@ -402,7 +422,7 @@ ${sessionNotes}`,
       </div>
 
       {/* Split-Screen Grid Layout */}
-      <div className={`flex-1 grid gap-3 overflow-hidden ${splitScreenMode ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+      <div className={`flex-1 grid gap-3 ${splitScreenMode ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
         
         {/* LEFT COLUMN: Video Stream Window */}
         <div className={`flex flex-col rounded-2xl bg-[#0b0616] border border-[#2a1b4e] overflow-hidden shadow-2xl relative ${
@@ -410,7 +430,7 @@ ${sessionNotes}`,
         }`}>
           
           {/* Main Video Viewport */}
-          <div className="relative flex-1 bg-gradient-to-b from-[#120b24] to-[#0b0616] flex items-center justify-center overflow-hidden min-h-[320px]">
+          <div className="relative flex-1 bg-gradient-to-b from-[#120b24] to-[#0b0616] flex items-center justify-center overflow-hidden min-h-[360px] sm:min-h-[420px]">
             
             {inCall ? (
               <div className="w-full h-full relative flex items-center justify-center bg-[#0d0718]">
@@ -446,24 +466,34 @@ ${sessionNotes}`,
                 )}
 
                 {/* Patient overlay */}
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-[#0b0616]/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#2a1b4e]">
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-[#0b0616]/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#2a1b4e] z-20">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-xs font-bold text-white">{currentPatient?.name || 'Paciente'}</span>
                   <span className="text-[10px] text-purple-300/70">(Paciente)</span>
                 </div>
 
-                {/* Audio Activity */}
-                <div className="absolute top-4 right-4 flex items-center gap-1 bg-[#0b0616]/80 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-[#2a1b4e]">
-                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                  <div className="flex gap-0.5 items-end h-3">
-                    <span className="w-0.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.1s]" />
-                    <span className="w-0.5 h-2 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.2s]" />
+                {/* Audio Activity & Quick End Call in top right */}
+                <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+                  <div className="flex items-center gap-1 bg-[#0b0616]/80 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-[#2a1b4e]">
+                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                    <div className="flex gap-0.5 items-end h-3">
+                      <span className="w-0.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                      <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.1s]" />
+                      <span className="w-0.5 h-2 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.2s]" />
+                    </div>
                   </div>
+
+                  <button
+                    onClick={toggleCall}
+                    className="p-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-600/50 text-red-300 hover:text-white transition-all shadow-md"
+                    title="Encerrar Consulta"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* PiP (Picture-in-Picture): Professional Camera */}
-                <div className="absolute bottom-4 right-4 w-32 sm:w-44 aspect-video rounded-xl overflow-hidden border-2 border-[#bf5af2] shadow-[0_0_20px_rgba(191,90,242,0.4)] bg-[#120b24] z-20">
+                <div className="absolute top-16 right-4 sm:top-auto sm:bottom-20 sm:right-4 w-28 sm:w-40 aspect-video rounded-xl overflow-hidden border-2 border-[#bf5af2] shadow-[0_0_20px_rgba(191,90,242,0.4)] bg-[#120b24] z-20">
                   {cameraEnabled ? (
                     <video
                       ref={localVideoRef}
@@ -475,12 +505,65 @@ ${sessionNotes}`,
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0616] text-purple-400/60 p-2 text-center">
                       <VideoOff className="w-5 h-5 mb-1 text-[#ff007f]" />
-                      <span className="text-[10px]">Câmera Desativada</span>
+                      <span className="text-[9px]">Câmera Off</span>
                     </div>
                   )}
                   <div className="absolute bottom-1 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">
                     Você ({professionalData.name.split(' ')[0]})
                   </div>
+                </div>
+
+                {/* FLOATING IN-VIDEO CONTROLS TOOLBAR (ALWAYS VISIBLE OVER VIDEO) */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-[#0a0516]/90 backdrop-blur-xl p-2 rounded-2xl border border-[#3b2064] shadow-[0_10px_30px_rgba(0,0,0,0.8)] max-w-[95%]">
+                  <button
+                    onClick={toggleMic}
+                    className={`p-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      micEnabled
+                        ? 'bg-[#150a2b] text-purple-200 hover:text-white border border-[#351b5e]'
+                        : 'bg-pink-950 text-[#ff007f] border border-pink-700 shadow-[0_0_10px_rgba(255,0,127,0.3)]'
+                    }`}
+                    title={micEnabled ? 'Desativar Microfone' : 'Ativar Microfone'}
+                  >
+                    {micEnabled ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4" />}
+                    <span className="hidden md:inline">{micEnabled ? 'Mic On' : 'Mutado'}</span>
+                  </button>
+
+                  <button
+                    onClick={toggleCamera}
+                    className={`p-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      cameraEnabled
+                        ? 'bg-[#150a2b] text-purple-200 hover:text-white border border-[#351b5e]'
+                        : 'bg-pink-950 text-[#ff007f] border border-pink-700 shadow-[0_0_10px_rgba(255,0,127,0.3)]'
+                    }`}
+                    title={cameraEnabled ? 'Desligar Câmera' : 'Ligar Câmera'}
+                  >
+                    {cameraEnabled ? <Video className="w-4 h-4 text-[#bf5af2]" /> : <VideoOff className="w-4 h-4" />}
+                    <span className="hidden md:inline">{cameraEnabled ? 'Câmera On' : 'Câmera Off'}</span>
+                  </button>
+
+                  <button
+                    onClick={toggleScreenShare}
+                    className={`p-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      isScreenSharing
+                        ? 'bg-[#bf5af2] text-white shadow-md'
+                        : 'bg-[#150a2b] text-purple-200 hover:text-white border border-[#351b5e]'
+                    }`}
+                    title="Compartilhar Tela com o Paciente"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span className="hidden lg:inline">Compartilhar</span>
+                  </button>
+
+                  {/* FLOATING END CALL BUTTON INSIDE VIDEO TOOLBAR */}
+                  <button
+                    id="floating-end-telemed-call-btn"
+                    onClick={toggleCall}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 text-white shadow-[0_0_20px_rgba(225,29,72,0.6)] border border-red-400 transition-all active:scale-95"
+                    title="Encerrar Consulta Imediatamente"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                    <span className="font-extrabold tracking-wide">Encerrar Consulta</span>
+                  </button>
                 </div>
 
               </div>
@@ -495,16 +578,17 @@ ${sessionNotes}`,
                 </p>
                 <button
                   onClick={() => setInCall(true)}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-md hover:brightness-110"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-lg hover:brightness-110 flex items-center gap-2 mx-auto"
                 >
-                  Reconectar Chamada
+                  <Video className="w-4 h-4" />
+                  <span>Reconectar Chamada</span>
                 </button>
               </div>
             )}
 
           </div>
 
-          {/* Bottom Call Controls Toolbar */}
+          {/* Bottom Call Controls Toolbar (Secondary / Desktop Footer) */}
           <div className="p-3 bg-[#120b24] border-t border-[#2a1b4e] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
@@ -547,7 +631,7 @@ ${sessionNotes}`,
               </button>
             </div>
 
-            {/* End Call Button */}
+            {/* End Call Button in Footer */}
             <button
               id="end-telemed-call-btn"
               onClick={toggleCall}
