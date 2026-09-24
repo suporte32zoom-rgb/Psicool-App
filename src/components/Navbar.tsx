@@ -602,38 +602,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
 
-            {/* Desktop Navigation Tabs: Always visible on large screens */}
-            <nav className="hidden xl:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    id={`nav-btn-${item.id}`}
-                    onClick={() => handleSelectTab(item.id)}
-                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 shrink-0 ${
-                      isActive
-                        ? 'bg-gradient-to-r from-[#bf5af2]/20 to-[#ff007f]/20 text-white border border-[#bf5af2]/60 shadow-[0_0_15px_rgba(191,90,242,0.25)]'
-                        : 'text-slate-300 hover:text-white hover:bg-[#180e2e]/70 border border-transparent'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#ff007f]' : 'text-purple-300/70'}`} />
-                    <span className="whitespace-nowrap">{item.label}</span>
-                    {item.badge && (
-                      <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full ${
-                        isActive 
-                          ? 'bg-[#ff007f] text-white shadow-[0_0_8px_rgba(255,0,127,0.5)]' 
-                          : 'bg-purple-950/80 text-purple-300 border border-purple-800/60'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-
             {/* Right Controls: Profile Dropdown, Quota Indicator & Pro Upgrade */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               
