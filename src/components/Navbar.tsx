@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Stethoscope, 
   Calendar, 
@@ -26,7 +26,11 @@ import {
   ArrowRight,
   FileCheck,
   CheckCircle2,
-  Mic
+  Mic,
+  ChevronRight,
+  ExternalLink,
+  Sliders,
+  Settings
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { NavigationTab, ProfessionalProfile } from '../types';
@@ -69,22 +73,105 @@ export const Navbar: React.FC<NavbarProps> = ({
   maxMessages,
   onSelectSubAction,
 }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Desktop & Universal Hamburger Drawer state
+  const [hamburgerDrawerOpen, setHamburgerDrawerOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [menuSearchTerm, setMenuSearchTerm] = useState('');
+  const [drawerSearchTerm, setDrawerSearchTerm] = useState('');
 
-  // Top main tabs
-  const navItems: { id: NavigationTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string }[] = [
-    { id: 'consultorio', label: 'Alegra AI', icon: Stethoscope },
-    { id: 'documentos', label: 'Prescrições & Laudos', icon: FileText, badge: 'IMPRIMIR' },
-    { id: 'escalas', label: 'Escalas & Testes', icon: ClipboardList, badge: 'TESTES' },
-    { id: 'pacientes', label: 'Prontuários', icon: Users },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'telemedicina', label: 'Telemedicina', icon: Video, badge: 'HD' },
-    { id: 'consultorios', label: 'Consultórios & TCLE', icon: Building2 },
-    { id: 'financeiro', label: 'Financeiro & IRPF', icon: DollarSign },
-    { id: 'planos', label: 'Planos Pro', icon: Crown, badge: 'PRO' },
+  // Close drawers with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setHamburgerDrawerOpen(false);
+        setMegaMenuOpen(false);
+        setProfileDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Top main tabs definition
+  const navItems: { 
+    id: NavigationTab; 
+    label: string; 
+    desc: string;
+    icon: React.ComponentType<{ className?: string }>; 
+    badge?: string;
+    color: string;
+  }[] = [
+    { 
+      id: 'consultorio', 
+      label: 'Alegra AI', 
+      desc: 'Copiloto Clínico & Raciocínio Diagnóstico (CFP/CFM)', 
+      icon: Stethoscope, 
+      badge: 'IA',
+      color: 'from-[#bf5af2] to-[#ff007f]'
+    },
+    { 
+      id: 'documentos', 
+      label: 'Prescrições & Laudos', 
+      desc: 'Receitas C1, Notificações B e A, Atestados e Laudos', 
+      icon: FileText, 
+      badge: 'IMPRIMIR',
+      color: 'from-[#ff007f] to-[#d946ef]'
+    },
+    { 
+      id: 'escalas', 
+      label: 'Escalas & Testes', 
+      desc: 'Baterias Psicométricas (PHQ-9, GAD-7, TDAH, Beck)', 
+      icon: ClipboardList, 
+      badge: '6 TESTES',
+      color: 'from-[#bf5af2] to-[#7928ca]'
+    },
+    { 
+      id: 'pacientes', 
+      label: 'Prontuários', 
+      desc: 'Fichas cadastrais, evoluções no padrão CFP/CFM e anexos', 
+      icon: Users, 
+      color: 'from-[#00f2fe] to-[#4facfe]'
+    },
+    { 
+      id: 'agenda', 
+      label: 'Agenda & Google', 
+      desc: 'Sincronização ao vivo com Google Agenda e Lembretes', 
+      icon: Calendar, 
+      badge: 'GOOGLE SYNC',
+      color: 'from-[#38ef7d] to-[#11998e]'
+    },
+    { 
+      id: 'telemedicina', 
+      label: 'Telemedicina HD', 
+      desc: 'Videoconsultas E2EE com link direto de WhatsApp', 
+      icon: Video, 
+      badge: 'HD E2EE',
+      color: 'from-[#ff0844] to-[#ffb199]'
+    },
+    { 
+      id: 'consultorios', 
+      label: 'Consultórios & TCLE', 
+      desc: 'Gestão de salas físicas, termos TCLE e contratos', 
+      icon: Building2, 
+      color: 'from-[#f39c12] to-[#e67e22]'
+    },
+    { 
+      id: 'financeiro', 
+      label: 'Financeiro & IRPF', 
+      desc: 'Recibos timbrados para dedução DMED/IRPF e fluxo de caixa', 
+      icon: DollarSign, 
+      badge: 'DMED',
+      color: 'from-[#2ecc71] to-[#27ae60]'
+    },
+    { 
+      id: 'planos', 
+      label: 'Planos Pro', 
+      desc: 'Acesso ilimitado à inteligência clínica e laudos', 
+      icon: Crown, 
+      badge: 'PRO',
+      color: 'from-[#ffd700] to-[#ffaa00]'
+    },
   ];
 
   // Complete Structured Catalog of Clinic Categories & Subcategories
@@ -204,7 +291,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'consultorio',
       title: 'Alegra AI & Inteligência Clínica Integrada',
-      description: 'Copiloto de raciocínio conjunto para psiquiatras e psicólogos com motor Gemini 3.8 Flash.',
+      description: 'Copiloto de raciocínio conjunto para psiquiatras e psicólogos com motor Gemini.',
       icon: Stethoscope,
       color: 'from-[#bf5af2] to-[#ff007f]',
       items: [
@@ -315,7 +402,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'telemedicina',
       title: 'Telemedicina HD Integrada & Split-Screen',
-      description: 'Videoconsulta criptografada de ponta a ponta com anotações em tela dividida.',
+      description: 'Videoconsulta criptografada de ponta a ponta com link real de WhatsApp e anotações.',
       icon: Video,
       color: 'from-[#ff0844] to-[#ffb199]',
       items: [
@@ -403,7 +490,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleSelectTab = (tab: NavigationTab) => {
     setActiveTab(tab);
-    setMobileMenuOpen(false);
+    setHamburgerDrawerOpen(false);
     setMegaMenuOpen(false);
   };
 
@@ -412,7 +499,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (onSelectSubAction) {
       onSelectSubAction(item.category, item.subAction);
     }
-    setMobileMenuOpen(false);
+    setHamburgerDrawerOpen(false);
     setMegaMenuOpen(false);
   };
 
@@ -447,14 +534,50 @@ export const Navbar: React.FC<NavbarProps> = ({
     ),
   })).filter((cat) => cat.items.length > 0);
 
+  // Filtered nav items for drawer search
+  const filteredNavItems = navItems.filter((item) => {
+    if (!drawerSearchTerm.trim()) return true;
+    const term = drawerSearchTerm.toLowerCase();
+    return (
+      item.label.toLowerCase().includes(term) ||
+      item.desc.toLowerCase().includes(term) ||
+      (item.badge && item.badge.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-[#2a1b4e]/80 bg-[#0b0616]/95 backdrop-blur-md">
+      <header className="sticky top-0 z-40 w-full border-b border-[#2a1b4e]/80 bg-[#0b0616]/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between h-16 sm:h-20 gap-2">
             
-            {/* Left: Brand Logo + Mega-Menu Trigger Button */}
-            <div className="flex items-center gap-3">
+            {/* Left: Hamburger Button (Desktop & Mobile) + Brand Logo + Catalog Button */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              
+              {/* DESKTOP & MOBILE HAMBURGER MENU BUTTON */}
+              <button
+                id="psicool-main-hamburger-btn"
+                onClick={() => setHamburgerDrawerOpen(!hamburgerDrawerOpen)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-xs font-bold transition-all shadow-md shrink-0 border ${
+                  hamburgerDrawerOpen
+                    ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white border-[#ff007f] shadow-[0_0_15px_rgba(255,0,127,0.5)]'
+                    : 'bg-[#180e2e] text-purple-100 border-[#3d2466] hover:border-[#bf5af2] hover:bg-[#221340]'
+                }`}
+                aria-label="Abrir menu de navegação do Psicool"
+                title="Abrir Menu Principal de Navegação (Desktop & Mobile)"
+              >
+                {hamburgerDrawerOpen ? (
+                  <X className="w-5 h-5 text-white" />
+                ) : (
+                  <Menu className="w-5 h-5 text-[#bf5af2]" />
+                )}
+                <span className="hidden sm:inline font-extrabold tracking-wide">Menu</span>
+                <span className="hidden lg:inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-[#bf5af2]/25 text-[#d896ff] font-mono font-bold uppercase border border-[#bf5af2]/40">
+                  Navegação
+                </span>
+              </button>
+
+              {/* Brand Logo */}
               <div 
                 onClick={() => handleSelectTab('consultorio')} 
                 className="cursor-pointer shrink-0 transition-opacity hover:opacity-90"
@@ -466,24 +589,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="mega-menu-trigger-btn"
                 onClick={() => setMegaMenuOpen(!megaMenuOpen)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-xs font-bold transition-all shadow-md shrink-0 border ${
+                className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-2xl text-xs font-bold transition-all shadow-sm shrink-0 border ${
                   megaMenuOpen
                     ? 'bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white border-[#ff007f] shadow-[0_0_15px_rgba(255,0,127,0.4)]'
-                    : 'bg-[#180e2e] text-purple-200 border-[#3d2466] hover:border-[#bf5af2] hover:bg-[#20133d]'
+                    : 'bg-[#120b24] text-purple-200 border-[#2a1b4e] hover:border-[#bf5af2] hover:bg-[#1a0f35]'
                 }`}
                 title="Abrir catálogo completo de categorias e subcategorias do consultório"
               >
-                <LayoutGrid className="w-4 h-4 text-[#bf5af2]" />
-                <span className="hidden sm:inline">Menu do Consultório</span>
-                <span className="sm:hidden font-mono">Menu</span>
-                <span className="hidden md:inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-[#ff007f]/30 text-[#ff80bf] font-extrabold uppercase border border-[#ff007f]/40">
-                  Todas as Funções
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${megaMenuOpen ? 'rotate-180' : ''}`} />
+                <LayoutGrid className="w-3.5 h-3.5 text-[#bf5af2]" />
+                <span>Catálogo Completo</span>
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${megaMenuOpen ? 'rotate-180' : ''}`} />
               </button>
             </div>
 
-            {/* Desktop Navigation: Always visible on screens >= xl */}
+            {/* Desktop Navigation Tabs: Always visible on large screens */}
             <nav className="hidden xl:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -515,7 +634,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </nav>
 
-            {/* Right Controls: Profile Dropdown, Quota Indicator & Hamburger */}
+            {/* Right Controls: Profile Dropdown, Quota Indicator & Pro Upgrade */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               
               {/* Free Usage Counter */}
@@ -617,15 +736,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
 
-              {/* Mobile Menu Hamburger Button */}
-              <button
-                id="mobile-nav-toggle-btn"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="xl:hidden p-2 rounded-xl bg-[#120b24] border border-[#2a1b4e] text-purple-200 hover:text-white"
-                aria-label="Abrir menu de navegação"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
             </div>
 
           </div>
@@ -661,6 +771,210 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </header>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP & UNIVERSAL HAMBURGER NAVIGATION DRAWER (SIDEBAR SLIDE-OVER)      */}
+      {/* ========================================================================= */}
+      {hamburgerDrawerOpen && (
+        <div 
+          id="psicool-desktop-hamburger-drawer"
+          className="fixed inset-0 z-50 flex justify-start bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setHamburgerDrawerOpen(false)}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md sm:max-w-lg h-full bg-[#0c061a] border-r border-[#2d1852] shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-left duration-250"
+          >
+            
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 border-b border-[#251345] bg-gradient-to-r from-[#120b24] via-[#1b0f38] to-[#120b24] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Logo size="md" showSubtitle={false} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[#ff007f] uppercase tracking-wider">Menu Principal</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#bf5af2]/20 text-[#d896ff] font-mono font-bold border border-[#bf5af2]/30">
+                      PSICOOL
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-purple-300/70">Navegação rápida por todos os módulos</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setHamburgerDrawerOpen(false)}
+                className="p-2 rounded-xl bg-[#1b0e36] hover:bg-[#28154e] border border-[#3b2064] text-purple-300 hover:text-white transition-all"
+                title="Fechar menu (ESC)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profile Quick Toggle inside Drawer */}
+            <div className="px-4 py-3 bg-[#080412] border-b border-[#21113c] flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-purple-300/80 flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-[#bf5af2]" />
+                Perfil Ativo:
+              </span>
+              <div className="flex items-center gap-1 bg-[#120b24] p-1 rounded-xl border border-[#2a1b4e]">
+                <button
+                  onClick={() => setProfile('psicologo')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    profile === 'psicologo'
+                      ? 'bg-[#bf5af2] text-white shadow-md'
+                      : 'text-purple-300/70 hover:text-white'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  <span>Psicólogo (CRP)</span>
+                </button>
+                <button
+                  onClick={() => setProfile('psiquiatra')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    profile === 'psiquiatra'
+                      ? 'bg-[#00f2fe] text-slate-900 font-extrabold shadow-md'
+                      : 'text-purple-300/70 hover:text-white'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-900" />
+                  <span>Psiquiatra (CRM)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Drawer Search Bar */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-purple-400/60" />
+                <input
+                  type="text"
+                  value={drawerSearchTerm}
+                  onChange={(e) => setDrawerSearchTerm(e.target.value)}
+                  placeholder="Pesquisar módulo ou ferramenta..."
+                  className="w-full bg-[#120b24] border border-[#2a1b4e] focus:border-[#bf5af2] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-purple-400/40 focus:outline-none"
+                />
+                {drawerSearchTerm && (
+                  <button
+                    onClick={() => setDrawerSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Navigation List */}
+            <div className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto">
+              <div className="text-[10px] uppercase font-bold text-purple-400/60 px-2 pt-1 pb-1 tracking-wider">
+                Módulos do Consultório
+              </div>
+
+              {filteredNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`drawer-nav-btn-${item.id}`}
+                    onClick={() => handleSelectTab(item.id)}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-all duration-200 group border ${
+                      isActive
+                        ? 'bg-gradient-to-r from-[#bf5af2]/25 to-[#ff007f]/25 border-[#bf5af2]/70 text-white shadow-[0_0_15px_rgba(191,90,242,0.3)]'
+                        : 'bg-[#120b24]/70 hover:bg-[#1a0f35] border-[#22123f] hover:border-[#bf5af2]/50 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2.5 rounded-xl border transition-all ${
+                        isActive
+                          ? 'bg-gradient-to-tr from-[#bf5af2] to-[#ff007f] text-white border-white/20 shadow-md'
+                          : 'bg-[#0d071c] text-purple-300 border-[#2d1752] group-hover:text-white group-hover:border-[#bf5af2]/50'
+                      }`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white group-hover:text-[#bf5af2] transition-colors">
+                            {item.label}
+                          </span>
+                          {item.badge && (
+                            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+                              isActive
+                                ? 'bg-[#ff007f] text-white shadow-sm'
+                                : 'bg-[#1f103d] text-[#ff80bf] border border-[#ff007f]/30'
+                            }`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-purple-300/60 truncate mt-0.5">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${
+                      isActive ? 'text-[#ff007f] translate-x-0.5' : 'text-purple-400/40 group-hover:text-white group-hover:translate-x-0.5'
+                    }`} />
+                  </button>
+                );
+              })}
+
+              {/* Mega-Menu button inside drawer */}
+              <button
+                onClick={() => {
+                  setHamburgerDrawerOpen(false);
+                  setMegaMenuOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-[#180e2e] to-[#251246] border border-[#3f226b] hover:border-[#ff007f] text-white font-bold text-xs mt-3 shadow-md transition-all group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <LayoutGrid className="w-4 h-4 text-[#bf5af2]" />
+                  <span>Ver Catálogo Completo com Subcategorias</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#ff007f] group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+
+            {/* Drawer Bottom Bar: Upgrade & Ethics compliance */}
+            <div className="p-4 bg-[#080412] border-t border-[#22123f] space-y-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-[#140b2b] to-[#230d3a] border border-[#ff007f]/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-[#ff007f]/20 text-[#ff007f] border border-[#ff007f]/40">
+                    <Crown className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Plano Profissional</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 font-mono">
+                        {messageCount}/{maxMessages} msgs
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-purple-300/70">Alegra AI & Telemedicina Ilimitadas</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleSelectTab('planos')}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] hover:brightness-110 text-white text-xs font-bold shadow-md transition-all whitespace-nowrap"
+                >
+                  Ver Planos
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-purple-400/60 px-1">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  Conformidade CFP 01/2009 & CFM 2.314/2022
+                </span>
+                <span className="font-mono">v2.4.0</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MEGA-MENU FULL CLINIC CATALOG MODAL (CATEGORIZED HUBS & SUBCATEGORIES)    */}
@@ -794,75 +1108,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Menu Drawer */}
-      {mobileMenuOpen && (
-        <div className="xl:hidden fixed inset-0 z-40 bg-[#0b0616]/98 backdrop-blur-xl pt-20 pb-6 px-4 overflow-y-auto space-y-4">
-          <div className="space-y-1">
-            <button
-              onClick={() => {
-                setMegaMenuOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-[#bf5af2]/20 to-[#ff007f]/20 border border-[#bf5af2]/60 text-white font-bold text-sm mb-3 shadow-md"
-            >
-              <div className="flex items-center gap-2">
-                <LayoutGrid className="w-5 h-5 text-[#bf5af2]" />
-                <span>Abrir Catálogo Completo (Menu do Consultório)</span>
-              </div>
-              <ArrowRight className="w-4 h-4 text-[#ff007f]" />
-            </button>
-
-            <div className="text-[10px] uppercase font-bold text-purple-400/70 px-2 pb-1 tracking-wider">
-              Navegação Principal
-            </div>
-
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelectTab(item.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-sm font-semibold transition-all ${
-                    isActive
-                      ? 'bg-gradient-to-r from-[#bf5af2]/25 to-[#ff007f]/25 text-white border border-[#bf5af2]/60'
-                      : 'text-slate-300 hover:bg-[#180e2e] border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-[#ff007f]' : 'text-purple-300/70'}`} />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.badge && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#ff007f] text-white">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="pt-4 border-t border-[#2a1b4e]">
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#120b24] via-[#1a0f35] to-[#250d3a] border border-[#ff007f]/40 text-center">
-              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-[#ff007f] uppercase tracking-wider mb-1">
-                <Crown className="w-4 h-4" />
-                PSICOOL Premium Ilimitado
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Alegra AI ilimitada, telemedicina sem corte de tempo e emissão de laudos.
-              </p>
-              <button
-                onClick={() => handleSelectTab('planos')}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#bf5af2] to-[#ff007f] text-white text-xs font-bold shadow-lg"
-              >
-                Fazer Upgrade Agora
-              </button>
-            </div>
           </div>
         </div>
       )}
