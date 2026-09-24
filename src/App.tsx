@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { AlegraChat } from './components/AlegraChat';
 import { TelemedicineVideo } from './components/TelemedicineVideo';
+import { PatientTelemedPortal } from './components/PatientTelemedPortal';
 import { PlansAndPricing } from './components/PlansAndPricing';
 import { CalendarAgenda } from './components/CalendarAgenda';
 import { PatientsDirectory } from './components/PatientsDirectory';
@@ -36,6 +37,19 @@ export default function App() {
   const [profile, setProfile] = useState<ProfessionalProfile>(() => {
     const saved = localStorage.getItem('psicool_profile_type');
     return (saved as ProfessionalProfile) || 'psicologo';
+  });
+
+  // Patient Telemedicine Room Mode (activated when accessing ?sala=... via WhatsApp)
+  const [activePatientRoom, setActivePatientRoom] = useState<{ code: string; patientName?: string } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('sala') || params.get('room');
+      const patient = params.get('paciente') || params.get('patient');
+      if (room) {
+        return { code: room, patientName: patient || 'Paciente' };
+      }
+    }
+    return null;
   });
 
   // Commercial Free Usage Lock State (0 / 30 mensagens)
@@ -234,6 +248,23 @@ export default function App() {
     setMessageCount(0);
   };
 
+  if (activePatientRoom) {
+    return (
+      <PatientTelemedPortal
+        roomCode={activePatientRoom.code}
+        patientNameParam={activePatientRoom.patientName}
+        professionalData={professionalData}
+        profile={profile}
+        onExitToDashboard={() => {
+          setActivePatientRoom(null);
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0b0616] text-slate-100 flex flex-col selection:bg-[#ff007f] selection:text-white">
       
@@ -269,10 +300,14 @@ export default function App() {
           <TelemedicineVideo
             patients={patients}
             profile={profile}
+            professionalData={professionalData}
             onSaveEvolutionToPatient={handleSaveEvolutionToPatient}
             onNavigateToChatWithPrompt={(prompt) => {
               setBridgedPrompt(prompt);
               setActiveTab('consultorio');
+            }}
+            onOpenPatientRoom={(roomCode, patientName) => {
+              setActivePatientRoom({ code: roomCode, patientName });
             }}
           />
         )}
